@@ -1,3 +1,6 @@
+![Jigsaw! The ultimate electronic puzzle (Screenshot)]([https://example.com)](https://github.com/huibert7/Jigsaw-The-ultimate-electronic-puzzle/blob/main/jigsaw.jpg?raw=true)
+
+
 # Jigsaw! The ultimate electronic puzzle
 
 When the Apple launched the Apple IIGS in 1986 I knew I just had to buy one, since it shared the Mac's UI (and it was much cheaper). After spending a whole week-end playing with GS/Write and GS/Paint, the equivalents of Mac Write and Mac Paint, I was eager to write an application that could use the Toolbox APIs. The problem was that I had absolutely no need for any kind of application. Since I really wanted to start programming as soon as possible, I settled on the first idea that crossed my mind...
