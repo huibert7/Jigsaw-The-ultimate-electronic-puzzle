@@ -1,0 +1,2646 @@
+         list off
+         absaddr on
+         instime on
+         GEN   off
+         SYMBOL off
+         KEEP jigsaw
+
+         mcopy puzzle.macros
+
+Puzzle         START
+               bra DoIt
+
+True           gequ $8000
+False          gequ $0000
+
+ScreenMode     gequ $00                 ; 640
+MaxX           gequ 320
+Prodos         gequ $E100A8
+
+; Zero page use.
+
+Handle1        gequ $10
+Handle2        gequ Handle1+4
+Handle3        gequ Handle2+4
+
+               END
+
+DoIt           start
+               using GlobalData
+
+               phk
+               plb
+
+               tdc
+               sta MyZP
+
+               jsr InitStuff
+               bcs AllDone
+
+               stz QuitFlag
+               stz NotFirstTime
+
+               jsr PlayWithIt
+
+AllDone        anop
+
+               PEA $0007
+               _IntSource
+
+               phd
+               _DeskShutdown
+               _SoundShutdown
+               _PMShutdown
+               _ListShutdown
+               _FMShutdown
+               _SFShutdown
+               _MenuShutdown
+               _DialogShutdown
+               _LEShutdown
+               _CtlShutdown
+               _WindShutdown
+               _EMShutdown
+               _QDAuxShutdown
+               _QDShutdown
+               _MTShutdown
+               pld
+
+               PushLong Handle1
+               _DisposHandle
+
+               PushLong Handle2
+               _DisposHandle
+
+               PushLong Handle3
+               _DisposHandle
+
+               PushLong ZPHandle
+               _DisposHandle
+
+               PushWord MyID
+               _MMShutdown
+
+               _TLShutdown
+
+               _Quit QuitParams
+
+               brk $F0
+
+               END
+
+
+****************************************************************
+*
+* GlobalDATA
+*
+****************************************************************
+GlobalData     DATA
+
+
+ZpHandle       ds 4
+PrintHandle    ds 4
+
+QuitParams     dc i4'0'
+               dc i'$0000'              ; am restartable in memory
+
+MyID           ds 2
+
+ToolTable      dc i'14'
+               dc i'4,$0100'            ; quickdraw
+               dc i'5,$0100'            ; desk manager
+               dc i'6,$0100'            ; event manager
+               dc i'8,$0000'            ; sound manager
+               dc i'14,$0000'           ; window manager from disk!
+               dc i'15,$0100'           ; menu manager from Disk!
+               dc i'16,$0100'           ; control manager form disk!
+               dc i'18,$0100'           ; quickdraw auxiliary
+               dc i'19,$0000'           ; print manager
+               dc i'20,$0000'           ; line edit
+               dc i'21,$0000'           ; dialog manager from disk!
+               dc i'23,$0101'           ; standard file operations
+               dc i'27,$0100'           ; font manager
+               dc i'28,$0100'           ; list manager
+
+EventRecord    anop
+EventWhat      ds 2
+EventMessage   ds 4
+EventWhen      ds 4
+EventWhere     ds 4
+EventModifiers ds 2
+TaskDATA       ds 4
+TaskMask       dc i4'$0FFF'
+
+QuitFlag       ds 2
+
+Win1Ptr        ds 4
+DialogPtr      ds 4
+InstIndex      ds 2
+Register       ds 16
+GenNote        ds 14*2
+GenNum         ds 14*2                  ; two tables indexed by GenNum
+
+first          ds 2
+NotFirsttime   ds 2
+FirstClick     ds 2
+WindowPresent  ds 2
+ShowingPuzzle  ds 2
+
+Flashing       ds 2
+squarepos      ds 2
+squarepos2     ds 2
+Delay          ds 2
+isInterrupt    ds 2
+
+piece          ds 2
+piece2         ds 2
+yend           ds 2
+yend2          ds 2
+ligne          ds 2
+ligne2         ds 2
+index          ds 2
+index2         ds 2
+index3         ds 2
+buf1           ds 2
+buf2           ds 2
+line           ds 2
+line2          ds 2
+heigh2         ds 2
+width2         ds 2
+TempWidth      ds 2
+IndexTemp      ds 2
+horizPieces2   ds 2
+vertPieces2    ds 2
+Temp           ds 2
+Pieces         ds 2
+FlipFlag       ds 2
+
+HowManyCorrect ds 2
+Correct        ds 2
+PercentStr     str '00.0%'
+
+finished       ds 2
+hardwayflag    ds 2
+time           ds 2
+FinalTime      ds 8
+NoHighScore    ds 2
+Size2          dc i2'0'
+SoundOn        ds 2
+BeepOn         ds 2
+
+NumberOfBlocks ds 2
+NotePlayed     ds 2
+BlockIndex     ds 2
+Timer          ds 2
+Tempo          dc i2'6'
+Volume         dc i2'127'
+NoteIndex      ds 2
+
+MyZP           ds 2
+GlobalPort     ds 4
+
+penalmin       ds 2
+penalsec       ds 2
+totalmin       ds 2
+totalsec       ds 2
+
+; Item Types
+;
+ButtonItem     equ   10
+CheckItem      equ   11
+RadioItem      equ   12
+ScrollBarItem  equ   13
+UserCtlItem    equ   14
+StatText       equ   15
+EditText       equ   16
+EditLine       equ   17
+IconItem       equ   18
+PicItem        equ   19
+UserItem       equ   20
+
+Size           dc i2'0'
+CurrTime       str '0:00:00 '
+CurrTime2      str ' 0:00:00'
+Windname       ds 16
+diffsec        ds 2
+diffmin        ds 2
+diffhour       ds 2
+CurrentCorrect ds 2
+penalty        ds 2
+TwoPlayFlag    ds 2
+Player         ds 2
+TimePlayer1    str '0:00:00'
+heigh          ds 2
+width          ds 2
+horizPieces    ds 2
+vertPieces     ds 2
+FlipMode       ds 2
+
+ItemDisable    equ   $8000
+
+VolNotFound    equ $45                  ; prodos error
+
+Bufferpalette  ds 32
+ProgPathname   ds 128
+CurrPathname   ds 128
+
+DevName        dc i4'DeviceName'
+VolName        dc i4'VolumeName'
+TotalBlocks    ds 4
+FreeBlocks     ds 4
+FileSysId      ds 4
+
+DeviceName     str '.d1'
+VolumeName     ds 128
+
+               END
+
+****************************************************************
+*
+* InitStuff
+*
+****************************************************************
+InitStuff      START
+               using GlobalData
+               using MenuData
+
+; Now we initialize all the tools we are going
+; use.
+;
+               _TLStartup               ; Tool locator
+
+; Initialize the memory manager.
+;
+
+               PushWord #0
+               _MMStartup
+               ErrorDeath 'Could not init Mem Mgr.'
+
+               pla
+               sta MyID
+
+; Initialize misc tools.
+;
+               _MTStartup
+               ErrorDeath 'Could not init Misc Tools.'
+
+; Initialize the desk manager
+;
+               _DeskStartup
+
+; First get some memory for the zero page we need!
+;
+               PushLong #0              ; space for handle
+               PushLong #$C00           ; 12 pages
+               PushWord MyID
+               PushWord #$C005          ; locked, fixed, fixed bank,page aligned
+               PushLong #0
+               _NewHandle
+
+               bcc NoMemError
+               jmp MemError
+
+NoMemError     pla
+               sta 0
+               sta ZPHandle
+               pla
+               sta 2
+               sta ZPHandle+2
+
+               lda [0]
+               sta 4
+
+LoadAgain      PushLong #ToolTable
+               _LoadTools
+               bcc ToolsLoaded
+
+               cmp #VolNotFound
+               beq DoMount
+               sec
+               ErrorDeath 'Could not load tools.'
+
+DoMount        anop
+               jsl MountBootDisk
+               cmp #1
+               beq LoadAgain
+
+               sec
+
+               rts
+
+ToolsLoaded    PushWord 4               ; zp to use
+               PushWord #ScreenMode
+               PushWord #160            ; max size of scan line
+               PushWord MyID
+               _QDStartup
+               ErrorDeath 'Could not start QuickDraw.'
+
+               _QDAuxStartUp
+               ErrorDeath 'Could not start QuickDraw Auxiliary'
+
+               lda 4                    ; zp to use = qd zp +$300
+               clc
+               adc #$300
+               pha
+               PushWord #20             ; queue size
+               PushWord #0              ; x clamp low
+               PushWord #MaxX           ; x clamp high
+               PushWord #0              ; y clamp low
+               PushWord #194            ; y clamp high
+               PushWord MyID
+               _EMStartup
+               ErrorDeath 'Could not start Event Manager.'
+
+               PushWord #20
+               PushWord #20
+               _MoveTo
+
+               PushWord #0
+               _SetBackColor
+
+               PushWord #$F
+               _SetForeColor
+
+               _ShowCursor
+
+               lda 4
+               clc
+               adc #$400
+               pha
+               _SoundStartUp
+               ErrorDeath 'Could not start Sound toolset.'
+
+               PushWord MyID
+               _WindStartup
+               ErrorDeath 'Could not start the window manager.'
+
+               PushWord MyID
+               lda 4                    ; zp to use = qd zp +$400
+               clc
+               adc #$500
+               pha
+               _CtlStartup
+               ErrorDeath 'Could not start Control Manager.'
+
+               PushWord MyID
+               lda 4
+               clc
+               adc #$600                ; zp to use = qd zp +$500
+               pha
+               _LEStartup
+               ErrorDeath 'Could not start Line Edit.'
+
+               PushWord MyID
+               _DialogStartup
+               ErrorDeath 'Could not start Dialog Manager.'
+
+               sep #$20
+               longa off
+
+               lda >$E1C034
+               and #%11110000
+               sta >$E1C034
+
+               rep #$20
+               longa on
+
+!              jsl Prodos
+!              dc i2'$08'               ; Volume
+!              dc i4'DevName'
+
+!              lda TotalBlocks+2
+!              cmp #1
+!              bcs NoCheck
+!              lda TotalBlocks
+!              cmp #$641
+!              bcs NoCheck
+
+!        lda   MyID
+!        jsl   PROTECT
+!        cmp   #$0001
+!        bcc   NoCheck
+!        lda   #$0F01
+!        sta   TypeListPtr
+
+NoCheck        stz SoundOn
+               jsl DisplayLogo
+               jsl LoadHighScores
+               jsl PlayTitleMusic
+
+noSound        ldx #$00
+bcle3          lda bufferpalette,x
+               sta >$E19E00,x
+               inx
+               inx
+               cpx #32
+               bcc bcle3
+
+               sep #$20
+               longa off
+
+               ldx #194
+               lda #9
+bclePalBlack   sta >$E19D00,x
+               inx
+               cpx #200
+               bne bclePalBlack
+
+               ldx #0
+               lda #0
+bclePalBlack2  sta >$E19F20,x
+               inx
+               cpx #32
+               bne bclePalBlack2
+
+               rep #$20
+               longa on
+
+               PushLong #$0000
+               _Refresh
+
+               PushWord MyID
+               lda 4                    ; zp to use = qd zp +$600
+               clc
+               adc #$700
+               pha
+               _MenuStartup
+               ErrorDeath 'Could not start Menu Manager.'
+
+               PushWord MyID
+               lda 4
+               clc
+               adc #$800
+               pha
+               _SFStartUp
+               ErrorDeath 'Could not start Standard File.'
+
+               PushWord MyId
+               lda 4
+               clc
+               adc #$900
+               pha
+               _FMStartUp
+               ErrorDeath 'Could not start Font Manager.'
+
+               _ListStartUp
+               ErrorDeath 'Could not start List Manager.'
+
+               PushWord MyId
+               lda 4
+               clc
+               adc #$A00
+               pha
+               _PMStartUp
+               ErrorDeath 'Could not start Print Manager.'
+
+; Now build the menu bar by inserting the three menus
+; (back to front).
+;
+               PushLong #0
+               PushLong #Menu5
+               _NewMenu
+               PushWord #0
+               _InsertMenu
+
+               PushLong #0              ; space for return
+               PushLong #Menu4
+               _NewMenu
+               PushWord #0
+               _InsertMenu
+
+               PushLong #0              ; space for return
+               PushLong #Menu3
+               _NewMenu
+               PushWord #0
+               _InsertMenu
+
+               PushLong #0              ; space for return
+               PushLong #Menu2
+               _NewMenu
+               PushWord #0
+               _InsertMenu
+
+               PushLong #0              ; space for return
+               PushLong #Menu1
+               _NewMenu
+               PushWord #0
+               _InsertMenu
+
+; Finish off getting the menu bar ready.
+;
+               PushWord #0
+               _FixMenuBar
+               pla                      ; discard menu bar height
+
+               _DrawMenuBar
+
+               stz WindowPresent
+               stz ShowingPuzzle
+               stz finished
+               stz isInterrupt
+
+               PushLong #0
+               _GetPort
+
+               pla
+               sta GlobalPort
+               pla
+               sta GlobalPort+2
+
+               PushWord #$F
+               _SetBackColor
+
+               PushWord #$0
+               _SetForeColor
+
+               PushWord #262
+               PushWord #10
+               _MoveTo
+
+               lda Player
+               cmp #$02
+               beq ShowTime2
+
+               PushLong #CurrTime
+               _DrawString
+
+               bra TimeShowed
+
+ShowTime2      PushLong #CurrTime2
+               _DrawString
+
+TimeShowed     PushWord #$8000
+               PushWord #262
+               _CheckMItem
+
+               PushWord #$8000
+               PushWord #266
+               _CheckMItem
+
+               PushWord #$8000
+               PushWord #284
+               _CheckMItem
+
+               lda #30
+               sta heigh2
+               lda #16
+               sta width2
+               lda #10
+               sta horizPieces2
+               lda #6
+               sta vertPieces2
+
+               PushLong #0
+               PushLong #140
+               PushWord MyID
+               PushWord #$C018          ; locked, fixed, fixed bank
+               PushLong #0
+               _NewHandle
+
+               pla
+               sta PrintHandle
+               pla
+               sta PrintHandle+2
+
+               lda PrintHandle+2
+               pha
+               lda PrintHandle
+               pha
+               _PrDefault
+
+               stz Hardwayflag
+               stz TwoPlayflag
+               stz FlipFlag
+               stz BeepOn
+
+               clc
+               rts
+
+               END
+
+
+****************************************************************
+*
+* PlayWithIt
+*
+* This contains the main event loop.
+*
+****************************************************************
+PlayWithIt     START
+               using GlobalData
+
+Again          lda QuitFlag
+               beq begin
+               jmp AllDone
+
+begin          lda Flashing
+               beq skip
+
+               lda ShowingPuzzle
+               bne skip
+
+               inc delay
+               lda delay
+               cmp #20
+               bcc skip
+
+               jsl Flash
+
+               lda #$00
+               sta delay
+
+skip           lda isInterrupt
+               beq noTimeUpdate
+
+               PushLong #0
+               _GetPort
+
+               lda GlobalPort+2
+               pha
+               lda GlobalPort
+               pha
+               _SetPort
+
+               PushWord #262
+               PushWord #10
+               _MoveTo
+
+               lda Player
+               cmp #$02
+               beq ShowTime2
+
+               PushLong #CurrTime
+               _DrawString
+
+               bra TimeShowed
+
+ShowTime2      PushLong #CurrTime2
+               _DrawString
+
+TimeShowed     _SetPort
+
+               lda #$00
+               sta isInterrupt
+
+noTimeUpdate   PushWord #0
+               PushWord #$FFFF
+               PushLong #EventRecord
+               _TaskMaster
+
+               pla
+               bne trtevent
+               jmp Again
+
+trtevent       asl a
+               tax
+
+               jsr (TaskTable,x)
+
+               jmp Again
+
+AllDone        rts
+
+TaskTable      anop
+;
+; Event manager events
+;
+               dc i'ignore'             ; 0 null
+               dc i'ignore'             ; 1 mouse down
+               dc i'ignore'             ; 2 mouse up
+               dc i'KeyDown'            ; 3 key down
+               dc i'ignore'             ; 4 undefined
+               dc i'ignore'             ; 5 auto-key down
+               dc i'DoUpdate'           ; 6 update event
+               dc i'ignore'             ; 7 undefined
+               dc i'DoActivate'         ; 8 activate
+               dc i'ignore'             ; 9 switch
+               dc i'ignore'             ; 10 desk acc
+               dc i'ignore'             ; 11 device driver
+               dc i'ignore'             ; 12 ap
+               dc i'ignore'             ; 13 ap
+               dc i'ignore'             ; 14 ap
+               dc i'ignore'             ; 15 ap
+               dc i'Ignore'             ; 0 in desk
+
+; Task master events
+
+               dc i'DoMenu'             ; 1
+               dc i'ignore'             ; 2 in system window
+               dc i'inContent'          ; 3 in content of window
+               dc i'ignore'             ; 4 in drag
+               dc i'ignore'             ; 5 in grow
+               dc i'DoGoAway'           ; 6 in goaway
+               dc i'ignore'             ; 7 in zoom
+               dc i'ignore'             ; 8 in info bar
+               dc i'ignore'             ; 9 in ver scroll
+               dc i'ignore'             ; 10 in hor scroll
+               dc i'ignore'             ; 11 in frame
+               dc i'ignore'             ; in drop
+
+               END
+
+****************************************************************
+*
+* Ignore
+*
+* Does not do a whole lot.
+*
+****************************************************************
+Ignore         START
+               rts
+               END
+
+****************************************************************
+*
+* Key Down, Flips a flashing piece
+*
+****************************************************************
+KeyDown        START
+               Using GlobalData
+               Using BufferMem
+
+               lda Flashing
+               beq skip
+
+               lda squarepos
+               asl a
+               tax
+               lda >TableFlip,x
+               eor FlipMode
+               sta >TableFlip,x
+
+skip           rts
+
+               END
+
+****************************************************************
+*
+* DoMenu
+*
+* Called when task master tells me that a menu item has
+* been selected.
+*
+****************************************************************
+DoMenu         START
+               using GlobalDATA
+
+               lda TaskDATA
+               cmp #256
+               bcc GiveUp               ; this should never happen
+
+               and #$00FF
+               asl a
+               tax
+
+               jsr (MenuTable,x)
+
+
+GiveUp         anop
+               PushWord #False          ; draw normal
+               PushWord TaskDATA+2      ; which menu
+               _HiliteMenu
+
+               rts
+               
+
+MenuTable      anop
+               dc i'ignore'
+               dc i'DoAboutItem'
+               dc i'doQuitItem'
+               dc i'doOpen'
+               dc i'doShowPic'
+               dc i'ShowHighScores2'
+               dc i'Sixty'
+               dc i'Fourty'
+               dc i'Fifteen'
+               dc i'Eight'
+               dc i'TurnSoundOn'
+               dc i'TurnSoundOff'
+               dc i'Choose'
+               dc i'StyleDialog'
+               dc i'Print'
+               dc i'doGoAway'
+               dc i'Restart'
+               dc i'Restore'
+               dc i'Save'
+               dc i'ignore'
+               dc i'hardway'
+               dc i'ResetRecords'
+               dc i'TwoPlayers'
+               dc i'FlashWrong'
+               dc i'Ninety'
+               dc i'HundredSixty'
+               dc i'TwoHundred'
+               dc i'Flips'
+               dc i'TurnBeepOn'
+               dc i'TurnBeepOff'
+
+               END
+
+****************************************************************
+*
+* ChangeParams
+*
+****************************************************************
+
+ChangeSize     START
+               Using GlobalData
+
+TwoHundred     ENTRY
+               jsr nomark
+
+               PushWord #$8000
+               PushWord #282
+               _CheckMItem
+
+               lda #6
+               sta Size2
+               lda #20
+               sta HorizPieces2
+               lda #10
+               sta VertPieces2
+               lda #18
+               sta heigh2
+               lda #8
+               sta width2
+
+               rts
+
+HundredSixty   ENTRY
+               jsr nomark
+
+               PushWord #$8000
+               PushWord #281
+               _CheckMItem
+
+               lda #5
+               sta size2
+               lda #16
+               sta HorizPieces2
+               lda #10
+               sta VertPieces2
+               lda #18
+               sta heigh2
+               lda #10
+               sta width2
+
+               rts
+
+Ninety         ENTRY
+               jsr nomark
+
+               PushWord #$8000
+               PushWord #280
+               _CheckMItem
+
+               lda #4
+               sta size2
+               lda #10
+               sta HorizPieces2
+               lda #9
+               sta VertPieces2
+               lda #20
+               sta heigh2
+               lda #16
+               sta width2
+
+               rts
+
+Sixty          ENTRY
+               jsr nomark
+
+               PushWord #$8000
+               PushWord #262
+               _CheckMItem
+
+               lda #0
+               sta Size2
+               lda #10
+               sta HorizPieces2
+               lda #6
+               sta VertPieces2
+               lda #30
+               sta heigh2
+               lda #16
+               sta width2
+
+               rts
+
+Fourty         ENTRY
+               jsr nomark
+
+               PushWord #$8000
+               PushWord #263
+               _CheckMItem
+
+               lda #1
+               sta size2
+               lda #8
+               sta HorizPieces2
+               lda #5
+               sta VertPieces2
+               lda #36
+               sta heigh2
+               lda #20
+               sta width2
+
+               rts
+
+Fifteen        ENTRY
+               jsr nomark
+
+               PushWord #$8000
+               PushWord #264
+               _CheckMItem
+
+               lda #2
+               sta size2
+               lda #5
+               sta HorizPieces2
+               lda #3
+               sta VertPieces2
+               lda #60
+               sta heigh2
+               lda #32
+               sta width2
+
+               rts
+
+Eight          ENTRY
+               jsr nomark
+
+               PushWord #$8000
+               PushWord #265
+               _CheckMItem
+
+               lda #3
+               sta size2
+               lda #4
+               sta HorizPieces2
+               lda #2
+               sta VertPieces2
+               lda #90
+               sta heigh2
+               lda #40
+               sta width2
+
+               rts
+
+TurnSoundOn    ENTRY
+
+               jsr Nomark2
+
+               PushWord #$8000
+               PushWord #266
+               _CheckMItem
+
+               jmp Play
+
+TurnSoundOff   ENTRY
+
+               jsr Nomark2
+
+               PushWord #$8000
+               PushWord #267
+               _CheckMItem
+
+               lda #1
+               sta SoundOn
+
+               rts
+
+TurnBeepOn     ENTRY
+
+               PushWord #$8000
+               PushWord #284
+               _CheckMItem
+
+               PushWord #$0
+               PushWord #285
+               _CheckMItem
+
+               stz BeepOn
+
+               rts
+
+TurnBeepOff    ENTRY
+
+               PushWord #$0
+               PushWord #284
+               _CheckMItem
+
+               PushWord #$8000
+               PushWord #285
+               _CheckMItem
+
+               lda #1
+               sta BeepOn
+
+               rts
+
+nomark         PushWord #0
+               PushWord #262
+               _CheckMItem
+
+               PushWord #0
+               PushWord #263
+               _CheckMItem
+
+               PushWord #0
+               PushWord #264
+               _CheckMItem
+
+               PushWord #0
+               PushWord #265
+               _CheckMItem
+
+               PushWord #0
+               PushWord #280
+               _CheckMItem
+
+               PushWord #0
+               PushWord #281
+               _CheckMItem
+
+               PushWord #0
+               PushWord #282
+               _CheckMItem
+
+               rts
+
+nomark2        PushWord #0
+               PushWord #266
+               _CheckMItem
+
+               PushWord #0
+               PushWord #267
+               _CheckMItem
+
+               rts
+
+HardWay        ENTRY
+
+               lda HardWayFlag
+               beq SetFlag
+
+               stz HardWayFlag
+
+               PushWord #$0
+               PushWord #276
+               _CheckMItem
+
+               rts
+
+SetFlag        lda #$01
+               sta HardWayFlag
+
+               PushWord #$8000
+               PushWord #276
+               _CheckMItem
+
+               rts
+
+TwoPlayers     ENTRY
+
+               lda TwoPlayFlag
+               beq SetFlag2
+
+               stz TwoPlayFlag
+
+               PushWord #$0
+               PushWord #278
+               _CheckMItem
+
+               rts
+
+SetFlag2       lda #$01
+               sta TwoPlayFlag
+
+               PushWord #$8000
+               PushWord #278
+               _CheckMItem
+
+               rts
+
+Flips          ENTRY
+
+               lda FlipFlag
+               beq SetFlag3
+
+               stz FlipFlag
+
+               PushWord #$0
+               PushWord #283
+               _CheckMItem
+
+               rts
+
+SetFlag3       lda #$01
+               sta FlipFlag
+
+               PushWord #$8000
+               PushWord #283
+               _CheckMItem
+
+               rts
+
+               END
+
+****************************************************************
+*
+* doQuitItem
+*
+* Sets quit flag.
+*
+****************************************************************
+doQuitItem     START
+               using GlobalDATA
+
+               lda #$8000
+               sta QuitFlag
+
+               rts
+
+               END
+
+****************************************************************
+*
+* doAboutItem
+*
+* Brings up about box and waits until button press until
+* it puts it away.
+*
+****************************************************************
+doAboutItem    START
+               using globalData
+
+               PushLong #0              ; output
+               PushLong #DRect
+               PushWord #True           ; visible
+               PushLong #0              ; refcon
+               _NewModalDialog
+
+               pla
+               sta MDialogPtr
+               pla
+               sta MDialogPtr+2
+
+               PushLong MDialogPtr
+               PushWord #1
+               PushLong #ButtonRect
+               PushWord #ButtonItem
+               PushLong #ButtonText
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #2
+               PushLong #TextRect1
+               PushWord #StatText+ItemDisable
+               PushLong #Text1
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #3
+               PushLong #TextRect2
+               PushWord #StatText+ItemDisable
+               PushLong #Text2
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #4
+               PushLong #TextRect3
+               PushWord #StatText+ItemDisable
+               PushLong #Text3
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #5
+               PushLong #TextRect4
+               PushWord #StatText+ItemDisable
+               PushLong #Text4
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #6
+               PushLong #TextRect5
+               PushWord #StatText+ItemDisable
+               PushLong #Text5
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #7
+               PushLong #TextRect6
+               PushWord #StatText+ItemDisable
+               PushLong #Text6
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #8
+               PushLong #TextRect7
+               PushWord #StatText+ItemDisable
+               PushLong #Text7
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushWord #0              ; result
+               PushLong #0
+               _ModalDialog
+
+               pla
+
+               PushLong MDialogPtr
+               _CloseDialog
+
+               rts
+
+DRect          dc i'30,20,165,300'
+
+TextRect1      dc i'15,10,30,300'
+Text1          str 'Jigsaw deLuxe, a program by'
+TextRect2      dc i'32,10,42,300'
+Text2          str 'European Software Partner.'
+TextRect3      dc i'50,10,60,300'
+Text3          str 'Program design: Huibert Aalbers'
+TextRect4      dc i'62,60,72,300'
+Text4          str '                Javier Rullan Ruano'
+TextRect5      dc i'75,10,85,300'
+Text5          str 'Program written by: Huibert Aalbers'
+TextRect6      dc i'88,10,98,300'
+Text6          str 'Music composed by: Jim Cuomo'
+TextRect7      dc i'104,4,114,300'
+Text7          str 'Copyright Britannica Software,1988-89'
+
+ButtonRect     dc i'118,180,0,0'
+
+ButtonText     str 'OK'
+
+MDialogPtr     ds 4
+
+               END
+
+
+****************************************************************
+*
+* DoUpdate
+*
+****************************************************************
+DoUpdate       START
+               Using GlobalData
+
+               lda #$00
+               sta ShowingPuzzle
+
+               rts
+
+               END
+
+****************************************************************
+*
+* DoActivate
+*
+****************************************************************
+DoActivate     START
+
+
+               rts
+
+               END
+
+****************************************************************
+*
+* inContent
+*
+****************************************************************
+inContent      START
+               Using GlobalData
+               Using BufferMem
+
+               lda finished
+               beq WeArePlaying
+
+               lda #1
+               sta First
+               lda Size2
+               sta Size
+               jsr RestartEntry
+
+WeArePlaying   lda ShowingPuzzle
+               beq next
+
+               jsl Drawpuzzle
+
+               rts
+
+next           lda flashing
+               beq makeflash
+               jmp move
+
+makeflash      lda EventWhere
+               sec
+               sbc #13
+
+               ldy #$00
+               sty Temp
+bcle           cmp heigh
+               bcc suite
+               sec
+               sbc heigh
+               pha
+               lda Temp
+               clc
+               adc HorizPieces
+               sta Temp
+               pla
+               bra bcle
+
+suite          lda EventWhere+2
+               lsr a
+bcle1          cmp width
+               bcc suiteNext
+               sec
+               sbc width
+               pha
+               inc Temp
+               pla
+               bra bcle1
+
+suiteNext      lda Temp
+               sta squarepos
+
+               lda #$01
+               sta flashing
+               sta delay
+
+               rts
+
+Move           lda EventWhere
+
+               sec
+               sbc #13
+
+               ldy #$00
+               sty Temp
+bcle2          cmp heigh
+               bcc suite2
+               sec
+               sbc heigh
+               pha
+               lda Temp
+               clc
+               adc HorizPieces
+               sta Temp
+               pla
+               bra bcle2
+
+suite2         lda EventWhere+2
+               lsr a
+bcle3          cmp width
+               bcc suiteNext2
+               sec
+               sbc width
+               pha
+               inc Temp
+               pla
+               bra bcle3
+
+suiteNext2     lda Temp
+               pha
+               sta squarepos2
+               asl a
+               tax
+               lda >tablepuz0,x
+               sta Temp
+               lda squarepos
+               asl a
+               tax
+               lda >tablepuz0,x
+               tay
+               lda Temp
+               sta >tablepuz0,x
+               lda squarepos2
+               asl a
+               tax
+               tya
+               sta >tablepuz0,x
+
+               pla
+               sta squarepos2
+               asl a
+               tax
+               lda >tableFlip,x
+               sta Temp
+               lda squarepos
+               asl a
+               tax
+               lda >tableFlip,x
+               tay
+               lda Temp
+               sta >tableFlip,x
+               lda squarepos2
+               asl a
+               tax
+               tya
+               sta >tableFlip,x
+
+               jsl Drawpuzzle
+               lda #$00
+               sta flashing
+
+               rts
+
+               END
+
+****************************************************************
+*
+* DoGoAway
+*
+****************************************************************
+DoGoAway       START
+               using GlobalDATA
+
+               lda finished
+               beq suite
+               jmp close
+
+suite          PushLong #0              ; output
+               PushLong #DRect
+               PushWord #True           ; visible
+               PushLong #0              ; refcon
+               _NewModalDialog
+
+               pla
+               sta MDialogPtr
+               pla
+               sta MDialogPtr+2
+
+               PushLong MDialogPtr
+               PushWord #1
+               PushLong #ButtonRect
+               PushWord #ButtonItem
+               PushLong #ButtonText
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #2
+               PushLong #TextRect1
+               PushWord #StatText+ItemDisable
+               PushLong #Text1
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #3
+               PushLong #TextRect2
+               PushWord #StatText+ItemDisable
+               PushLong #Text2
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #4
+               PushLong #TextRect3
+               PushWord #StatText+ItemDisable
+               PushLong #Text3
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #5
+               PushLong #Button2Rect
+               PushWord #ButtonItem
+               PushLong #Button2Text
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushWord #0              ; result
+               PushLong #0
+               _ModalDialog
+
+               PushLong MDialogPtr
+               _CloseDialog
+
+               pla
+               cmp #$01
+               beq fin
+
+close          PushLong Win1Ptr
+               _CloseWindow
+
+               lda #$00
+               sta WindowPresent
+               sta Flashing
+               sta finished
+
+               PushWord #260
+               _DisableMItem
+
+               PushWord #279
+               _DisableMItem
+
+               PushWord #261
+               _DisableMItem
+
+               PushWord #270
+               _DisableMItem
+
+               PushWord #271
+               _DisableMItem
+
+               PushWord #272
+               _DisableMItem
+
+               PushWord #274
+               _DisableMItem
+
+               PushWord #259
+               _EnableMItem
+               PEA $0007
+
+               _IntSource
+
+fin            rts
+
+DRect          dc i'35,20,130,300'
+
+TextRect1      dc i'15,10,30,300'
+Text1          str 'Attention, if you close the window'
+TextRect2      dc i'32,10,42,300'
+Text2          str 'you will not be able to complete'
+TextRect3      dc i'50,10,60,300'
+Text3          str 'this puzzle.'
+
+ButtonRect     dc i'75,180,0,0'
+ButtonText     str 'Cancel'
+
+Button2Rect    dc i'75,120,0,0'
+Button2Text    str 'Ok'
+MDialogPtr     ds 4
+
+               END
+
+****************************************************************
+*
+* DoOpen
+*
+****************************************************************
+DoOpen         START
+               Using GlobalDATA
+               Using Buffermem
+               Using Buffermem2
+
+               lda SoundOn
+               sta Temp
+               lda #1
+               sta SoundOn
+
+               PushWord #26
+               PushWord #34
+               PushLong #MyTitle
+               PushLong #0
+               PushLong #typeListptr
+               PushLong #MyReplyRec
+               _SFGetFile
+
+               lda myReplyRec
+               bne cont
+               lda Temp
+               sta SoundOn
+
+               jmp fin
+
+cont           lda WindowPresent
+               beq next
+
+               PushLong Win1Ptr
+               _CloseWindow
+
+next           ldx #$00
+petitebcle     lda myFilename,x
+               sta windname,x
+               inx
+               cpx #16
+               bne petitebcle
+
+               lda Size2
+               sta Size
+
+               jsr SetupWindows
+
+               lda MyFiletype
+               cmp #$C0
+               bne Open
+
+               jmp CompactPic
+
+Open           jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblock'
+               bcc noOpenError
+               cmp #$27
+               beq notRecoverable
+               lda #$3
+               jsr ProdosError
+               bra Open
+
+notRecoverable jmp FatalError
+
+noOpenError    lda parmblock
+               sta parmblock1
+               sta parmblock2
+               sta parmblock5
+               sta parmblock6
+               sta parmblock7
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblock1'
+               bcc Read
+               jmp FatalError
+
+Read           jsl Prodos
+               dc i2'$12'               ; Read pic
+               dc i4'parmblock2'
+               bcc SetMark
+               jmp FatalError
+
+SetMark        jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblock5'
+               bcc Read2
+               jmp FatalError
+
+Read2          jsl Prodos
+               dc i2'$12'               ; Read
+               dc i4'parmblock6'
+               bcc Close
+               jmp FatalError
+
+Close          jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblock7'
+               bcs FatalError
+
+               lda Temp
+               sta SoundOn
+               bra RestartEntry
+
+FatalError     lda #1
+               jsr ProdosError
+
+               PushLong Win1Ptr
+               _CloseWindow
+
+               rts
+
+RestartEntry   ENTRY
+
+               lda #1
+               sta Player
+
+RestartEntry2  ENTRY
+
+               PushWord #260
+               _DisableMItem
+
+               lda HardWayFlag
+               bne skipShow
+
+       dc i'hardway'
+               dc i'ResetRecords'
+               dc i'TwoPlayers'
+               dc i'FlashWrong'
+               dc i'Ninety'
+               dc i'HundredSixty'
+               dc i'TwoHundred'
+               dc i'Flips'
+               dc i'TurnBeepOn'
+               dc i'TurnBeepOff'
+
+               END
+
+****************************************************************
+*
+* ChangeParams
+*
+****************************************************************
+
+ChangeSize     START
+               Using GlobalData
+
+TwoHundred     ENTRY
+               jsr nomark
+
+               PushWord #$8000
+               PushWord #282
+               _CheckMItem
+
+               lda #6
+               sta Size2
+               lda #20
+               sta HorizPieces2
+               lda #10
+               sta VertPieces2
+               lda #18
+               sta heigh2
+               lda #8
+               sta width2
+
+               rts
+
+HundredSixty   ENTRY
+               jsr nomark
+
+               PushWord #$8000
+                     jmp skipFlips
+
+DontUseBackup  lda EventWhen
+               and #%0000000000000111
+               asl a
+               tax
+
+               lda HorizPieces2
+               sta HorizPieces
+               lda VertPieces2
+               sta VertPieces
+               lda heigh2
+               sta heigh
+               lda width2
+               sta width
+               lda FlipFlag
+               sta FlipMode
+               lda Size2
+               sta Size
+               bne Not60
+
+               ldy #$00
+               lda >indextbl,x
+               tax
+copy           lda >tablepuz,x
+               phx
+               tyx
+               sta >tablepuz0,x
+               sta >tablepuz0Back,x
+               plx
+               inx
+               inx
+               iny
+               iny
+               cpy #120
+               bne copy
+               jmp ShuffleEnd
+
+Not60          cmp #1
+               bne Not40
+
+               ldy #$00
+               lda >indextbl40,x
+               tax
+copy2          lda >tablepuz40,x
+               phx
+               tyx
+               sta >tablepuz0,x
+               sta >tablepuz0Back,x
+               plx
+               inx
+               inx
+               iny
+               iny
+               cpy #80
+               bne copy2
+               jmp ShuffleEnd
+
+Not40          cmp #2
+               bne Not15
+
+               ldy #$00
+               lda >indextbl15,x
+               tax
+copy3          lda >tablepuz15,x
+               phx
+               tyx
+               sta >tablepuz0,x
+               sta >tablepuz0Back,x
+               plx
+               inx
+               inx
+               iny
+               iny
+               cpy #30
+               bne copy3
+               jmp ShuffleEnd
+
+Not15          cmp #3
+               bne Not8
+               ldy #$00
+               lda >indextbl8,x
+               tax
+copy4          lda >tablepuz8,x
+               phx
+               tyx
+               sta >tablepuz0,x
+               sta >tablepuz0Back,x
+               plx
+               inx
+               inx
+               iny
+               iny
+               cpy #16
+               bne copy4
+               jmp ShuffleEnd
+
+Not8           cmp #4
+               bne Not90
+
+               lda #90*2
+               sta Pieces
+               bra ShuffleRnd
+
+Not90          cmp #5
+               bne Not160
+
+               lda #160*2
+               sta Pieces
+               bra ShuffleRnd
+
+Not160         lda #200*2
+               sta Pieces
+
+ShuffleRnd     ldx #$00
+               lda #0
+bcleSetGrille  sta >tablepuz0,x
+               sta >tablepuz0Back,x
+               inx
+               inx
+               inc a
+               cpx #400
+               bne bcleSetGrille
+
+               stz Index
+               lda EventWhen
+               and #%0000000001111110
+               sta Index2
+               bne Ind2ok
+               inc Index2
+               inc Index2
+               lda Index2
+ind2ok         eor Pieces
+               sta Index3
+               cmp Pieces
+               bcc bcleShuffle
+               sbc Pieces
+               sta Index3
+
+bcleShuffle    ldx Index
+               lda >tablepuz0,x
+               asl a
+               cmp Index
+               bne NextOne
+
+               ldx Index3
+               lda >tablepuz0,x
+               sta Temp
+               ldx Index
+               lda >tablepuz0,x
+               ldx Index3
+               sta >tablepuz0,x
+               sta >tablepuz0Back,x
+               ldx Index2
+               lda >tablepuz0,x
+               ldx Index
+               sta >tablepuz0,x
+               sta >tablepuz0Back,x
+               lda Temp
+               ldx Index2
+               sta >tablepuz0,x
+               sta >tablepuz0Back,x
+
+NextOne        lda Index2
+               clc
+               adc #10
+               sta Index2
+               cmp Pieces
+               bcc Index2ok
+               sec
+               sbc Pieces
+               sta Index2
+Index2ok       lda Index3
+               clc
+               adc #6
+               sta Index3
+               cmp Pieces
+               bcc Index3ok
+               sec
+               sbc Pieces
+               sta Index3
+Index3ok       lda Index3
+               cmp Index2
+               beq NextOne
+               inc Index
+               inc Index
+               lda Index
+               cmp Pieces
+               beq ShuffleEnd
+               jmp bcleShuffle
+
+ShuffleEnd     ldx #0
+               lda #0
+bcleSetFlip    sta >TableFlip,x
+               sta >TableFlipBack,x
+               inx
+               inx
+               cpx #400
+               bne bcleSetFlip
+
+               lda FlipFlag
+               beq skipFlips
+
+               lda EventWhen
+               and #%0000000000000111
+               sta Index
+               lda EventWhen
+               and #%0000000000111111
+               sta Index2
+               bne NoInc
+               inc Index2
+
+NoInc          stz Temp
+bcleRndFlip    lda Index
+               asl a
+               tax
+               lda TableRnd,x
+               pha
+               lda Temp
+               asl a
+               tax
+               pla
+               sta >TableFlip,x
+               sta >TableFlipBack,x
+               lda Index
+               clc
+               adc Index2
+               and #%0000000000000111
+               sta Index
+               inc Temp
+               lda Temp
+               cmp #200
+               bne bcleRndFlip
+
+skipFlips      sep #$20
+               longa off
+
+               ldx #13
+               lda #$08
+pal1           sta $E19D00,x
+               inx
+               cpx #194
+               bne pal1
+
+               rep #$20
+               longa on
+
+fin            lda #0
+               sta diffmin
+               sta diffsec
+
+               sep #$30
+
+               LongA Off
+               LongI Off
+
+               lda currtime+1
+               sta currtime2+2
+               lda currtime+3
+               sta currtime2+4
+               lda currtime+4
+               sta currtime2+5
+               lda currtime+6
+               sta currtime2+7
+               lda currtime+7
+               sta currtime2+8
+
+               lda #$20
+               sta currtime2+1
+               lda #$30
+               sta currtime+1
+               sta currtime+3
+               sta currtime+4
+               sta currtime+6
+               sta currtime+7
+
+               rep #$30
+
+               LongA On
+               LongI On
+
+               _DrawMenuBar
+
+               PushLong #0
+               _GetPort
+
+               lda GlobalPort+2
+               pha
+               lda GlobalPort
+               pha
+               _SetPort
+
+               PushWord #262
+               PushWord #10
+               _MoveTo
+
+               lda Player
+               cmp #$02
+               beq ShowTime2
+
+               PushLong #CurrTime
+               _DrawString
+
+               bra TimeShowed
+
+ShowTime2      PushLong #CurrTime2
+               _DrawString
+
+TimeShowed     _SetPort
+
+               stz CurrentCorrect
+
+               lda #$01
+               sta FirstClick
+
+               lda TwoPlayFlag
+               bne Two
+
+EndTwo         rts
+
+Two            lda Player
+               cmp #1
+               bne EndTwo
+
+               PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #Player1Strt
+               _AlertWindow
+
+               pla
+
+               lda HardWayFlag
+               bne skipShow2
+
+               jsl ShowPic
+
+skipShow2      rts
+
+TableRnd       dc i2'0,0,1,0,0,1,1,0'
+
+Player1Strt    dc c'33/Player 1, it is now your turn. Press button to '
+               dc c'continue./^Ok',i1'0'
+
+
+typeListptr    ENTRY
+               dc i1'4'
+               dc i1'$0F'
+               dc i1'$06'
+               dc i1'$C1'
+               dc i1'$C0'
+
+MyTitle        str 'Select a puzzle'
+MyReplyRec     ds 2
+MyFileType     ds 2
+MyAuxFileType  ds 2
+MyFileName     ds 16
+MyFullPathname ds 129
+
+parmblock      ds 2                     ; ref_num
+pathname       dc i4'MyFullPathname'    ; pathname
+iobuffer       ds 4                     ; io_buffer
+
+parmblock1     ds 2
+position       dc i4'0'
+
+parmblock2     ds 2                     ; ref_num
+databuf        dc i4'picbuf'            ; data_buffer
+requestcount   dc i4'$7080'             ; request_count
+transfercount  ds 4                     ; transfer_count
+
+parmblock5     ds 2
+position3      dc i4'$7E00'
+
+parmblock6     ds 2
+databuf3       dc i4'$E19F00'
+requestcount4  dc i4'32'
+transfercount4 ds 4
+
+parmblock7     ds 2
+
+CompactPic     lda MyAuxFileType
+               bne NotPaint
+               brl PaintFile
+NotPaint       cmp #2
+               bne NotSupported
+               brl DeluxeFile
+
+NotSupported   lda Temp
+               sta SoundOn
+
+               PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #NotPaintMsg
+               _AlertWindow
+
+               pla
+
+               PushLong Win1Ptr
+               _CloseWindow
+
+               rts
+
+NotPaintMsg    dc c'34/This is not a Paint, Screen or Deluxe Paint (tm) file.'
+               dc c'Other file types are not supported by Jigsaw/^Continue',i1'0'
+
+PaintFile      jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblok'
+               bcc OpenOk
+               jmp error
+
+OpenOk         lda parmblok
+               sta parmblok1
+               sta parmblok2
+               sta parmblok3
+               sta parmblok4
+               sta parmblok5
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblok1'
+               bcs error
+
+               jsl Prodos
+               dc i2'$12'               ; Read table
+               dc i4'parmblok2'
+               bcs error
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblok3'
+               bcs error
+
+               jsl Prodos
+               dc i2'$12'               ; Read table
+               dc i4'parmblok4'
+               bcs error
+
+               jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblok5'
+               bcs error
+
+               lda #$7080
+               sta PicSize
+               lda #PicBuf
+               sta PicPtr
+               lda #^PicBuf
+               sta PicPtr+2
+
+               PushWord #0
+               PushLong PicBufPtr
+               PushWord #$7080
+               PushLong #PicPtr
+               PushLong #PicSize
+               _UnpackBytes
+
+               pla
+
+               lda Temp
+               sta SoundOn
+
+               jmp RestartEntry
+
+Error          lda #1
+               jsr ProdosError
+
+               PushLong Win1Ptr
+               _CloseWindow
+
+               rts
+
+parmblok       ds 2
+               dc i4'MyFullPathname'
+               ds 4
+
+parmblok1      ds 2
+               dc i4'546'
+
+parmblok2      ds 2
+PicBufPtr      dc i4'Picbuf2'
+               dc i4'$7080'
+               ds 4
+
+parmblok3      ds 2
+               dc i4'0'
+
+parmblok4      ds 2
+               dc i4'$E19F00'
+               dc i4'32'
+               ds 4
+
+parmblok5      ds 2
+
+PicPtr         dc i4'picbuf'
+PicSize        dc i2'$7080'
+
+DeluxeFile     jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblok'
+               bcc OpenOkbis
+               jmp error
+
+OpenOkbis      lda parmblok
+               sta parmblok1bis
+               sta parmblok2bis
+               sta parmblok3bis
+               sta parmblok4bis
+               sta parmblok5bis
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblok1bis'
+               bcs errorbis
+
+               jsl Prodos
+               dc i2'$12'               ; Read table
+               dc i4'parmblok2bis'
+               bcs errorbis
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblok3bis'
+               bcs errorbis
+
+               jsl Prodos
+               dc i2'$12'               ; Read table
+               dc i4'parmblok4bis'
+               bcs errorbis
+
+               jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblok5bis'
+               bcs errorbis
+
+               lda #$7080
+               sta PicSize
+               lda #PicBuf
+               sta PicPtr
+               lda #^PicBuf
+               sta PicPtr+2
+
+               PushWord #0
+               PushLong PicBufPtrbis
+               PushWord #$7080
+               PushLong #PicPtr
+               PushLong #PicSize
+               _UnpackBytes
+
+               pla
+
+               lda Temp
+               sta SoundOn
+
+               jmp RestartEntry
+
+Errorbis       lda #1
+               jsr ProdosError
+
+               PushLong Win1Ptr
+               _CloseWindow
+
+               rts
+
+parmblok1bis   ds 2
+               dc i4'849'
+
+parmblok2bis   ds 2                     ; ref_num
+PicBufPtrbis   dc i4'Picbuf2'           ; data_buffer
+               dc i4'$7080'             ; request_count
+               ds 4                     ; transfer_count
+
+parmblok3bis   ds 2
+               dc i4'$000F'
+
+parmblok4bis   ds 2                     ; ref_num
+               dc i4'$E19F00'           ; data_buffer
+               dc i4'32'                ; request_count
+               ds 4                     ; transfer_count
+
+parmblok5bis   ds 2
+
+               END
+
+Interrupt      START
+               Using GlobalData
+
+               LongA off
+               LongI off
+
+               phb
+               phk
+               plb
+               pha
+               phx
+               phy
+
+               sed
+               lda diffsec
+               clc
+               adc #1
+               sta diffsec
+               cmp #$60
+               bne evite
+
+               lda #0
+               sta diffsec
+               lda diffmin
+               clc
+               adc #1
+               sta diffmin
+               cmp #$60
+               bne evite
+
+               lda #0
+               sta diffmin
+               lda diffhour
+               clc
+               adc #1
+               sta diffhour
+               cmp #$10
+               bne evite
+               lda #$9
+               sta diffhour
+               lda #$59
+               sta diffmin
+               lda #$59
+               sta diffsec
+
+evite          cld
+               lda $E0C032
+               and #%10111111
+               sta $E0C032
+
+               lda diffhour
+               and #%00001111
+               clc
+               adc #$30
+               sta Currtime+1
+
+               lda diffmin
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta CurrTime+3
+
+               lda diffmin
+               and #%00001111
+               clc
+               adc #$30
+               sta Currtime+4
+
+               lda diffsec
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta CurrTime+6
+
+               lda diffsec
+               and #%00001111
+               clc
+               adc #$30
+               sta Currtime+7
+
+               lda Player
+               cmp #$2
+               beq WeMustDoIt
+               jmp SkipDec
+
+WeMustDoIt     lda CurrTime2+1
+               cmp #'-'
+               beq Inc
+               jmp Dec
+
+Inc            lda CurrTime2+8
+               cmp #$39
+               beq Inc10sec
+               inc CurrTime2+8
+               bra EndInc
+Inc10sec       lda #$30
+               sta CurrTime2+8
+               lda CurrTime2+7
+               cmp #$39
+               beq Inc1min
+               inc CurrTime2+7
+               bra EndInc
+Inc1min        lda #$30
+               sta CurrTime2+7
+               lda CurrTime2+5
+               cmp #$39
+               beq Inc10min
+               inc CurrTime2+5
+               bra EndInc
+Inc10min       lda #$30
+               sta CurrTime2+5
+               lda CurrTime2+4
+               cmp #$39
+               beq Inc1hour
+               inc CurrTime2+4
+               bra EndInc
+Inc1hour       lda #$30
+               sta CurrTime2+4
+               lda CurrTime2+2
+               cmp #$39
+               beq TooMuch
+               inc CurrTime2+2
+               bra EndInc
+TooMuch        sta CurrTime2+4
+               sta CurrTime2+5
+               sta CurrTime2+7
+               sta CurrTime2+8
+EndInc         jmp SkipDec
+
+Dec            lda CurrTime2+8
+               cmp #$30
+               beq Dec10sec
+               dec CurrTime2+8
+               bra EndInc
+Dec10sec       lda #$39
+               sta CurrTime2+8
+               lda CurrTime2+7
+               cmp #$30
+               beq Dec1min
+               dec CurrTime2+7
+               bra EndInc
+Dec1min        lda #$39
+               sta CurrTime2+7
+               lda CurrTime2+5
+               cmp #$30
+               beq Dec10min
+               dec CurrTime2+5
+               bra EndInc
+Dec10min       lda #$39
+               sta CurrTime2+5
+               lda CurrTime2+4
+               cmp #$30
+               beq Dec1hour
+               dec CurrTime2+4
+               bra EndInc
+Dec1hour       lda #$39
+               sta CurrTime2+4
+               lda CurrTime2+2
+               cmp #$30
+               beq HeyThatIs0
+               dec CurrTime2+2
+               bra SkipDec
+HeyThatIs0     lda #$30
+               sta CurrTime2+4
+               sta CurrTime2+5
+               sta CurrTime2+7
+               lda #$31
+               sta CurrTime2+8
+               lda #'-'
+               sta CurrTime2+1
+
+SkipDec        lda #$01
+               sta isinterrupt
+
+               ply
+               plx
+               pla
+               plb
+
+               clc
+               rtl
+
+               LONGA ON
+               LONGI ON
+
+               END
+
+****************************************************************
+*
+* DoShowPic
+*
+****************************************************************
+DoShowPic      START
+               Using GlobalData
+
+               lda #$01
+               sta ShowingPuzzle
+
+               jsl ShowPic
+
+               sed
+               lda penalty
+               cmp #$99
+               beq notinc
+               clc
+               adc #$01
+               sta penalty
+notinc         cld
+
+               rts
+
+               END
+
+****************************************************************
+*
+* Menu Data
+*
+****************************************************************
+MenuData       DATA
+
+Return         equ 13
+
+Menu1          dc c'>L@\XN1',i1'RETURN'
+               dc c' LAbout Jigsaw...\*AaN257V',i1'RETURN'
+               dc c'.'
+
+Menu2          dc c'>L File \N2',i1'RETURN'
+               dc c' LOpen...\*OoN259',i1'RETURN'
+               dc c' LClose\V*KkDN271',i1'RETURN'
+               dc c' LChoose Printer...\*CcN268',i1'RETURN'
+               dc c' LPage Setup...\N269',i1'RETURN'
+               dc c' LPrint...\*PpVDN270',i1'RETURN'
+               dc c' LQuit\*QqN258',i1'RETURN'
+               dc c'.'
+
+Menu3          dc c'>L Game \N3',i1'RETURN'
+               dc c' LRestore game\N273',i1'RETURN'
+               dc c' LSave game\DN274',i1'RETURN'
+               dc c' LRestart\*RrVDN272',i1'RETURN'
+               dc c' LSee Picture\*SsDN260',i1'RETURN'
+               dc c' LFlash misplaced pieces\*FfDN279',i1'RETURN'
+               dc c' LShow high-scores\*HhDN261',i1'RETURN'
+               dc c'.'
+
+Menu4          dc c'>L Level \N4',i1'RETURN'
+               dc c' L200 pieces\*22N282',i1'RETURN'
+               dc c' L160 pieces\*11N281',i1'RETURN'
+               dc c' L90 pieces\*99N280',i1'RETURN'
+               dc c' L60 pieces\*66N262',i1'RETURN'
+               dc c' L40 pieces\*44N263',i1'RETURN'
+               dc c' L15 pieces\*55N264',i1'RETURN'
+               dc c' L8 pieces\*88N265',i1'RETURN'
+               dc c'.'
+
+Menu5          dc c'>L Goodies \N5',i1'RETURN'
+               dc c' LMusic on\N266',i1'RETURN'
+               dc c' LMusic off\N267',i1'RETURN'
+               dc c' LSound on\N284',i1'RETURN'
+               dc c' LSound off\N285',i1'RETURN'
+               dc c' LHard way\N276',i1'RETURN'
+               dc c' LFlips\N283',i1'RETURN'
+               dc c' LTwo Players\*TtVN278',i1'RETURN'
+               dc c' LErase Records\N277',i1'RETURN'
+               dc c'.'
+
+               END
+
+               COPY Puzzle2.src

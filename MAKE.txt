@@ -1,0 +1,8 @@
+asml puzzle.src +L
+filetype jigsaw s16
+delete jigsaw.sys16
+rename jigsaw jigsaw.sys16
+prefix /esp/jigsaw
+delete jigsaw.sys16
+copy /esp/jigsaw.src/jigsaw.sys16
+quit

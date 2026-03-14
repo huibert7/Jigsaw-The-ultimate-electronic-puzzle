@@ -1,0 +1,823 @@
+****************************************************************
+*
+* Flash misplaced pieces
+*
+****************************************************************
+FlashWrong     START
+               Using GlobalData
+               Using BufferMem
+               Using BufferMem2
+
+               stz flashing
+               lda finished
+               bne donothing
+
+               lda ShowingPuzzle
+               beq next
+
+               jsl Drawpuzzle
+               bra Next
+
+donothing      rts
+
+next           ldx #$00
+bcle           lda >picbuf2,x
+               sta >picbuf3,x
+               inx
+               inx
+               cpx #$7080
+               bne bcle
+
+               ldx VertPieces
+               lda #0
+bcleConvert    cpx #0
+               beq finConvert
+               clc
+               adc HorizPieces
+               sta Pieces
+               dex
+               bra bcleConvert
+
+finConvert     stz squarepos
+bcleErase      lda width
+               lsr a
+               sta TempWidth
+               lda #0
+               sta Ligne
+               lda squarepos
+               asl a
+               tax
+               lda >CorrectTable,x
+               beq StartErase
+               jmp DontErase
+StartErase     lda squarepos
+bcle0          cmp horizPieces
+               bcc endbcle0
+               pha
+               lda ligne
+               clc
+               adc heigh
+               sta ligne
+               pla
+               sec
+               sbc horizPieces
+               bra bcle0
+endbcle0       pha
+               lda ligne
+               clc
+               adc heigh
+               sta yend
+               stz Index
+               pla
+bcle1          beq loop
+               pha
+               lda Index
+               clc
+               adc width
+               sta Index
+               pla
+               dec a
+               bra bcle1
+loop           lda ligne
+               asl a
+               tax
+               lda >tablelignes,x
+               clc
+               adc index
+               sta buf1
+               ldx #$00
+loop1          lda #$00
+               phx
+               ldx buf1
+               sta >picbuf3,x
+               txy
+               plx
+               iny
+               iny
+               sty buf1
+               inx
+               cpx TempWidth
+               bne loop1
+               inc ligne
+               lda ligne
+               cmp yend
+               bne loop
+DontErase      inc squarepos
+               lda squarepos
+               cmp pieces
+               beq finErase
+               brl bcleErase
+
+finErase       _HideCursor
+
+               stz Temp
+
+WaitEvent      PushWord #0
+               PushWord #0
+               PushWord #0
+               _ReadMouse
+
+               pla
+               plx
+               ply
+               and #%1100000000000000
+               bne ExitFlash
+
+               inc Temp
+               lda Temp
+               cmp #50
+               bne DontShowBuf3
+
+               ldx #$00
+bcleShowBuf3   lda >picbuf3,x
+               sta >$E12820,x
+               inx
+               inx
+               cpx #$7080
+               bne bcleShowBuf3
+
+               bra WaitEvent
+
+DontShowBuf3   cmp #70
+               bne WaitEvent
+
+               ldx #$00
+bcleShowBuf2   lda >picbuf2,x
+               sta >$E12820,x
+               inx
+               inx
+               cpx #$7080
+               bne bcleShowBuf2
+
+               stz Temp
+
+               bra WaitEvent
+
+ExitFlash      ldx #$00
+bcleShowBuf2bi lda >picbuf2,x
+               sta >$E12820,x
+               inx
+               inx
+               cpx #$7080
+               bne bcleShowBuf2bi
+
+               sed
+               lda penalty
+               cmp #$99
+               beq notinc
+               clc
+               adc #$01
+               sta penalty
+notinc         cld
+
+               PushWord #0
+               PushWord #%0000000000000010
+               PushWord #0
+               _FlushEvents
+
+               pla
+
+               _ShowCursor
+
+               rts
+
+               END
+
+****************************************************************
+*
+* Init Sound DOC
+*
+****************************************************************
+InitSound      START
+               using globalData
+
+               PushLong #SoundIRQrtn
+               _SetSoundMIRQV
+
+               sei
+
+               sep #$20
+               longa off
+
+bcleWait       lda >$E1C03C
+               bmi bcleWait
+               ora #%00100000
+               and #%10111111
+               sta >$E1C03C
+
+               lda #$40
+               sta >$E1C03E             ; Set Volume Registers
+               ldy #0
+               lda #0                   ; Volume=0
+bcleWrite1     sta >$E1C03D
+               iny
+               cpy #30
+               bne bcleWrite1
+
+               lda #$80
+               sta >$E1C03E             ; Set Wavetable Pointer Registers
+               ldy #0
+               lda #0                   ; Wavetable Pointer register=0
+bcleWrite2     sta >$E1C03D
+               iny
+               cpy #30
+               bne bcleWrite2
+
+               lda #$A0
+               sta >$E1C03E             ; Set Control Registers
+               ldy #0
+bcleWrite3     lda #1                   ; Control Byte=1 (osc. stopped)
+               sta >$E1C03D
+               iny
+               cpy #30
+               bne bcleWrite3
+
+               lda #$C0
+               sta >$E1C03E             ; Set Wavetable Size Registers
+               ldy #0
+bcleWrite4     lda #0                   ; Size=0
+               sta >$E1C03D
+               iny
+               cpy #30
+               bne bcleWrite4
+
+               lda #$00
+               sta >$E1C03E
+               lda #$FA
+               sta >$E1C03D             ; Frequency low 0=$7D =50Hz
+               lda #$20
+               sta >$E1C03E
+               lda #$0
+               sta >$E1C03D             ; Frequency high 0=0
+
+               lda #$E1
+               sta >$E1C03E
+               lda #60
+               sta >$E1C03D             ; 30 osc. enabled
+
+               lda #$A0
+               sta >$E1C03E
+               lda #$8
+               sta >$E1C03D             ; Osc 0 generates interrupts
+
+               rep #$20
+               longa on
+
+               cli
+
+               rts
+
+               END
+
+****************************************************************
+*
+* Play the music
+*
+****************************************************************
+Play           START
+               Using GlobalDATA
+               Using InstDef
+               Using HeadBuf
+               Using SequenceNotes
+               Using SeqEffects1
+
+               stz Timer
+               lda >HeaderBuffer+470
+               and #%0000000011111111
+               sta NumberOfBlocks
+               stz NotePlayed
+               stz BlockIndex
+               lda >HeaderBuffer+472
+               and #%0000000011111111
+               asl a
+               tax
+               lda BlockTable,x
+               sta NoteIndex
+               stz SoundOn
+
+               rts
+
+Beep           ENTRY
+
+               lda BeepOn
+               beq PlayBeep
+
+               rts
+
+PlayBeep       stz Timer2
+               lda #43
+               sta CurrArp
+
+               lda #43
+               asl a
+               tax
+               lda >FreqTable,x
+               sta TempFreqInt
+
+               sep #$20
+               longa off
+
+               sei
+
+bcleClear      lda >$E1C03C
+               bmi bcleClear
+               and #%10011111
+               sta >$E1C03C
+
+               lda #6
+               inc a
+               asl a
+               sta OscNumber
+               sta >$E1C03E
+               lda TempFreqInt
+               sta >$E1C03D             ; Frequency low 6
+               lda OscNumber
+               clc
+               adc #$20
+               sta >$E1C03E
+               lda TempFreqInt+1
+               sta >$E1C03D             ; Frequency high 6
+               lda OscNumber
+               clc
+               adc #$40
+               sta >$E1C03E
+               lda #170
+               sta >$E1C03D             ; Volume 6
+               lda OscNumber
+               clc
+               adc #$80
+               sta >$E1C03E
+               lda #0
+               sta >$E1C03D             ; Wave Adress 6
+               lda OscNumber
+               clc
+               adc #$C0
+               sta >$E1C03E
+               lda #$36
+               sta >$E1C03D             ; Wave Size 6
+               lda OscNumber
+               clc
+               adc #$A0
+               sta >$E1C03E
+               lda #2
+               sta >$E1C03D             ; Control register 6
+
+               rep #$20
+               longa on
+
+               cli
+
+               rts
+
+CurrArp        ds 2
+Timer2         ds 2
+
+****************************************************************
+*
+* Sound IRQ routine
+*
+****************************************************************
+SoundIRQrtn    ENTRY
+
+               longa off
+               longi off
+
+               phb
+               phd
+
+               lda >MyZP
+               tcd
+
+               phk
+               plb
+
+bcleWait       lda >$E1C03C
+               bmi bcleWait
+               and #%10011111
+               sta >$E1C03C
+
+               lda #$E0
+               sta >$E1C03E             ; Read Interrupt Register
+               lda >$E1C03D
+               lda >$E1C03D
+               and #%01111111
+               sta >$E1C03D
+
+               and #%00111110
+               lsr a
+               sta OscNumber
+               beq TimerInterrupt
+
+               clc
+
+               pld
+               plb
+
+               rtl
+
+TimerInterrupt stz Temporary
+
+               inc Timer
+               lda Timer
+               cmp Tempo
+               beq PlayTracks
+
+               jmp EndInterrupt
+
+PlayTracks     lda SoundOn
+               beq WeCanPlay
+               jmp EndInterrupt2
+
+WeCanPlay      rep #$10
+               longi on
+
+               stz Timer
+
+NewTrack       ldx NoteIndex
+               lda >Notes,x
+
+               rep #$20
+               longa on
+
+               and #%0000000011111111
+               cmp #128
+               bcs NotValid
+               cmp #0
+               bne NoteFound
+
+NotValid       inc NoteIndex
+
+               sep #$20
+               longa off
+
+               inc Temporary
+               lda Temporary
+               cmp #4
+               bne NewTrack
+
+               rep #$20
+               longa on
+
+               jmp EndPlay
+
+NoteFound      sta Semitone
+
+               lda Temporary
+               inc a
+               asl a
+               sta OscNumber
+
+               sep #$20
+               longa off
+
+bcleWaitStop   lda >$E1C03C
+               bmi bcleWaitStop
+               a"" "apWriting wave  Error was $q	
+"(akR"(ak`LmPROGRAMDEATH`1/Music/SndSmith.DOCqkqqkPICBUFqkPICBUFqkINSTRUMENT1`kPICBUFqkPICBUFqkINSTRUMENT1`kPICBUFqkPICBUFqkINSTRUMENT1`kPICBUFqkPICBUFqkINSTRUMENT1`kPICBUFqkPICBUFqkINSTRUMENT1`kPICBUFqkPICBUFqkX,>          INSTDEFoINSTRUMENT1IoPRIORITYINC1IoAWAVECOUNT1IoBWAVECOUNT1IoWAVELISTS1I<oINSTRUMENT2IoAWAVECOUNT2IoBWAVECOUNT2IoWAVELISTS2I<oINSTRUMENT3IoAWAVECOUNT3IoBWAVECOUNT3IoWAVELISTS3I<oINSTRUMENT4IoAWAVECOUNT4IoBWAVECOUNT4IoWAVELISTS4I<oINSTRUMENT5IoAWAVECOUNT5IoBWAVECOUNT5IoWAVELISTS5I<oINSTRUMENT6IoAWAVECOUNT6IoBWAVECOUNT6IoWAVELISTS6I<oINSTRUMENT7IoAWAVECOUNT7IoBWAVECOUNT7IoWAVELISTS7I<oINSTRUMENT8IoAWAVECOUNT8IoBWAVECOUNT8IoWAVELISTS8I<oINSTINDEXTABLE I \8pL(`<tP,do	FREQTABLEIX "$&)+.136:=AEIMRV\agmsz	#-7BNYft"3FZo4Ni%Fi
+4]	7hS
+JQh:nP7%	"	5Pu#\
+oK3*/Di iF7?^f T"^$P7%	"	5Pu#\
+oK3*/Di iF7?^f T"^$P7%	"	5Pu#\
+oK3*/Di iF7?^f T"^$P7%	"	5Pu#\
+oK3*/Di iF7?^f T"^$P7%	"	5Pu#\
+oK3*/Di iF7?^f T"^$P7%	"	5Pu#\
+oK3*/Di iF7?^f T"^$P7%	"	5Pu#\
+oK3*/Di iF7?^f T"^$P7%	"	5Pu#\
+op,A          FLASHWRONGdGLOBALDATAd	BUFFERMEMdBUFFERMEM2mFLASHING-mFINISHEDP-m
+SHOWINGPUZZLEp"sDRAWPUZZLE`"?kPICBUF2kPICBUF3hh`pPq.mVERTPIECES)`pmmHORIZPIECES
+mPIECESJqm	SQUAREPOS-mWIDTHJ
+m	TEMPWIDTH)
+mLIGNE-m	SQUAREPOS*?kCORRECTTABLEpLkI-m	SQUAREPOSMmHORIZPIECESH-mLIGNEmmHEIGH
+mLIGNEh8mmHORIZPIECESiH-mLIGNEmmHEIGH
+mYENh 14
+               sta >$E1C03D             ; Frequency high 14b
+               lda OscNumber
+               clc
+               adc #$40
+               sta >$E1C03E
+               lda #$7F
+               sta >$E1C03D             ; Volume 14
+               sta >$E1C03D             ; Volume 14b
+               lda OscNumber
+               clc
+               adc #$80
+               sta >$E1C03E
+               lda TempInterrupt
+               sta >$E1C03D             ; Wave Adress 14
+               lda Temp3Interrupt
+               sta >$E1C03D             ; Wave Adress 14b
+               lda OscNumber
+               clc
+               adc #$C0
+               sta >$E1C03E
+               lda TempInterrupt+1
+               sta >$E1C03D             ; Wave Size 14
+               lda Temp3Interrupt+1
+               sta >$E1C03D             ; Wave Size 14
+               lda OscNumber
+               clc
+               adc #$A0
+               sta >$E1C03E
+               lda Temp2Interrupt
+               sta >$E1C03D             ; Control register 14
+               lda Temp4Interrupt
+               sta >$E1C03D             ; Control register 14b
+
+               rep #$20
+               longa on
+
+               inc NoteIndex
+               inc Temporary
+               lda Temporary
+               cmp #4
+               beq EndPlay
+
+               sep #$20
+               longa off
+
+               jmp NewTrack
+
+               longa on
+
+EndPlay        lda NoteIndex
+               clc
+               adc #10
+               sta NoteIndex
+               inc NotePlayed
+               lda NotePlayed
+               cmp #64
+               bne EndInterrupt
+               stz NotePlayed
+               inc BlockIndex
+               ldx BlockIndex
+               cpx NumberOfBlocks
+               beq Finished
+               lda >HeaderBuffer+472,x
+               and #%0000000011111111
+               asl a
+               tax
+               lda BlockTable,x
+               sta NoteIndex
+               bra EndInterrupt
+
+Finished       stz Timer
+               stz NotePlayed
+               stz BlockIndex
+               lda >HeaderBuffer+472
+               and #%0000000011111111
+               asl a
+               tax
+               lda BlockTable,x
+               sta NoteIndex
+
+EndInterrupt   sep #$30
+               longa off
+               longi off
+
+               lda #6
+               inc a
+               asl a
+               sta OscNumber
+bcleWait3a     lda >$E1C03C
+               bmi bcleWait3a
+               and #%10011111
+               sta >$E1C03C
+
+               lda OscNumber
+               clc
+               adc #$A0
+               sta >$E1C03E
+               lda >$E1C03D
+               lda >$E1C03D             ; Control Register
+               and #%00000001
+               beq DoArp
+               jmp EndInterrupt2
+
+DoArp          lda Timer2
+
+               cmp #1
+               beq Stage1
+               cmp #4
+               beq Stage1
+               cmp #2
+               beq Stage2
+               cmp #5
+               beq Stage2
+               cmp #3
+               beq Stage3
+               jmp EndInterrupt2
+
+Stage3         lda CurrArp
+               sec
+               sbc #10
+               bra ModifieFreq
+
+Stage1         lda CurrArp
+               clc
+               adc #3
+               bra ModifieFreq
+
+Stage2         lda CurrArp
+               clc
+               adc #7
+
+ModifieFreq    rep #$20
+               longa on
+
+               and #%0000000011111111
+               sta CurrArp
+               asl a
+               tax
+               lda >FreqTable,x
+               sta TempFreqInt
+
+               sep #$20
+               longa off
+
+               lda OscNumber
+               sta >$E1C03E
+               lda TempFreqInt
+               sta >$E1C03D             ; Frequency low 14
+               lda OscNumber
+               clc
+               adc #$20
+               sta >$E1C03E
+               lda TempFreqInt+1
+               sta >$E1C03D             ; Frequency high 14
+
+               inc Timer2
+               lda Timer2
+               cmp #6
+               beq EndInterrupt2
+               stz Timer2
+
+EndInterrupt2  sep #$30
+               longa off
+               longi off
+
+               pld
+               plb
+
+               clc
+
+               rtl
+
+               longa on
+               longi on
+
+BlockTable     dc i2'0,896,1792,2688,3584,4480,5376,6272,7168,8064'
+               dc i2'8960,9856,10752,11648,12544,13440,14336,15232,16128,17024'
+               dc i2'17920,18816,19712,20608,21504,22400,23296,24192,25088,25984'
+               dc i2'26880,27776,28672,29568,30464,31360,32256,33152,34048,34944'
+               dc i2'35840,36736,37632,38528,39424,40320,41216,42112,43008,43904'
+               dc i2'44800,45696,46592,47488,48384,49280,50176,51072,51968,52864'
+               dc i2'53760,54656,55552,56448,57344,58240,59136,60032,60928,61824'
+               dc i2'62720,63616,64512'
+
+SampleTable    ds 14
+
+OscNumber      ds 2
+DataBank       ds 2
+Temporary      ds 2
+Semitone       ds 2
+TempInterrupt  ds 2
+Temp2Interrupt ds 2
+Temp3Interrupt ds 2
+Temp4Interrupt ds 2
+TempFreqInt    ds 2
+IndexInterrupt ds 2
+
+               END
+
+*******************************************************************
+*                                                                 *
+* Memoire reservee au stockage des notes et effects du sequenceur *
+*                                                                 *
+*******************************************************************
+HeadBuf        DATA
+
+HeaderBuffer   ds 600
+
+               END
+
+SequenceNotes  DATA NoteSeg
+
+Notes          ds 11648                 ; =14*64*13
+
+               END
+
+SeqEffects1    DATA NoteSeg
+
+Effects1       ds 11648                 ; =14*64*13
+
+               END
+
+****************************************************************
+*
+* Load Partition
+*
+****************************************************************
+LoadPartoche   START
+               Using GlobalDATA
+               Using HeadBuf
+               Using SequenceNotes
+               Using SeqEffects1
+
+Open           jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblock'
+               bcc noOpenError
+               lda #$1
+               jsr ProdosError
+               bra Open
+
+noOpenError    lda parmblock
+               sta parmblock1
+               sta parmblock2
+               sta parmblock3
+               sta parmblock4
+               sta parmblock5
+
+               jsl Prodos
+               dc i2'$16'               ; Set Position
+               dc i4'parmblock1'
+               bcc ReadHeader
+     ****************************************************************
+*
+* Flash misplaced pieces
+*
+****************************************************************
+FlashWrong     START
+               Using GlobalData
+               Using BufferMem
+               Using BufferMem2
+
+               stz flashing
+               lda finished
+               bne donothing
+
+               lda ShowingPuzzle
+               beq next
+
+               jsl Drawpuzzle
+               bra Next
+
+donothing      rts
+
+next           ldx #$00
+bcle           lda >picbuf2,x
+               sta >picbuf3,x
+               inx
+               inx
+               cpx #$7080
+               bne bcle
+
+               ldx VertPieces
+               lda #0
+bcleConvert    cpx #0
+               beq finConvert
+               clc
+               adc HorizPieces
+               sta Pieces
+               dex
+               bra bcleConvert
+
+finConvert     stz squarepos
+bcleErase      lda width
+               lsr a
+               sta TempWidth
+               lda #0
+               sta Ligne
+               lda squarepos
+               asl a
+               tax
+               lda >CorrectTable,x
+               beq StartErase
+               jmp DontErase
+StartErase     lda squarepos
+bcle0          cmp horizPieces
+               bcc endbcle0
+               pha
+               lda ligne
+               clc
+               adc heigh
+               sta ligne
+               pla
+               sec
+               sbc horizPieces
+               bra bcle0
+endbcle0       pha
+               lda ligne
+               clc
+               adc heigh
+               sta yend
+               stz Index
+               pla
+bcle1          beq loop
+               pha
+               lda Index
+               clc
+               adc width
+               sta Index
+               pla
+          

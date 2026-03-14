@@ -1,0 +1,1819 @@
+****************************************************************
+*
+* Tests if you made a high-score
+*
+****************************************************************
+TestHighScore  START
+               Using GlobalData
+               Using BufferMem
+
+               jsl ShowPic
+
+               jsr MoveRecTbl
+
+               sep #$30
+
+               LongA Off
+               LongI Off
+
+               ldy #$00
+bcle           tya
+               phy
+               asl a
+               tay
+               lda table,y
+               tax
+               ply
+               lda FinalTime+1
+               cmp >Time1,x
+               bcc lower
+               bne next
+               inx
+               inx
+               lda FinalTime+3
+               cmp >Time1,x
+               bcc lower
+               bne next
+               inx
+               lda FinalTime+4
+               cmp >Time1,x
+               bcc lower
+               bne next
+               inx
+               inx
+               lda FinalTime+6
+               cmp >Time1,x
+               bcc lower
+               bne next
+               inx
+               lda FinalTime+7
+               cmp >Time1,x
+               bcc lower
+               bne next
+next           iny
+               cpy #5
+               bne bcle
+
+               rep #$30
+
+               LongA On
+               LongI On
+
+               lda #$FF
+               sta NoHighScore
+
+               jsr ShowHighScores
+
+               jmp HandleTwo
+
+               LongA Off
+               LongI Off
+
+lower          tya
+               sta Pos
+               lda #4
+               sta Pos2
+MoveNames      stz Ligne
+               lda Pos2
+               asl a
+               tax
+               lda >PosIndex,x
+               tay
+               inx
+               inx
+               lda >PosIndex,x
+               tax
+               phx
+               tyx
+               lda >High1,x
+               plx
+               sta >High1,x
+               inx
+               inx
+               inx
+               iny
+               iny
+               iny
+moveNames2     phx
+               tyx
+               lda >High1,x
+               plx
+               sta >High1,x
+               inx
+               iny
+               inc Ligne
+               lda Ligne
+               cmp #26
+               bne movenames2
+               dec Pos2
+               lda Pos2
+               cmp #$FF
+               beq EraseName
+               cmp Pos
+               bcs moveNames
+
+EraseName      lda Pos
+               asl a
+               tax
+               lda >PosIndex,x
+               tax
+               lda #3
+               sta >High1,x
+
+               rep #$30
+
+               LongA On
+               LongI On
+
+               lda Pos
+               asl a
+               tax
+               lda Table,x
+               clc
+               adc #40
+               tax
+               adc #8
+               tay
+               stz Ligne
+               lda #41
+               sta yend
+
+               sep #$20
+
+               LongA Off
+
+MoveNum        lda >Time1,x
+               phx
+               tyx
+               sta >Time1,x
+               plx
+               dex
+               dey
+               inc Ligne
+               lda Ligne
+               cmp yend
+               bne MoveNum
+
+               rep #$20
+
+               LongA On
+
+               lda Pos
+               asl a
+               tay
+               lda table,y
+               tax
+               lda FinalTime+1
+               sta >Time1,x
+               lda FinalTime+3
+               sta >Time1+2,x
+               inx
+               inx
+               inx
+               lda FinalTime+6
+               sta >Time1+2,x
+
+               lda Pos
+               sta NoHighScore
+               jsr ShowHighScores
+
+HandleTwo      lda TwoPlayFlag
+               bne Two
+
+               rts
+
+Two            lda Player
+               cmp #1
+               bne EndTwo
+               brl prepare2
+
+EndTwo         jsl ShowPic
+
+               PushLong #0
+               PushLong #DRect
+               PushWord #True
+               PushLong #0
+               _NewModalDialog
+
+               pla
+               sta MDialogPtr
+               pla
+               sta MDialogPtr+2
+
+               PushLong MDialogPtr
+               PushWord #1
+               PushLong #ButtonRect
+               PushWord #ButtonItem
+               PushLong #ButtonText
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #2
+               PushLong #TextRect1
+               PushWord #StatText+ItemDisable
+               PushLong #Text1
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #3
+               PushLong #TextRect2
+               PushWord #StatText+ItemDisable
+               PushLong #Text2
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #4
+               PushLong #TextRect3
+               PushWord #StatText+ItemDisable
+               PushLong #TimePlayer1
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #5
+               PushLong #TextRect4
+               PushWord #StatText+ItemDisable
+               PushLong #Text4
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #6
+               PushLong #TextRect5
+               PushWord #StatText+ItemDisable
+               PushLong #CurrTime
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               sep #$20
+               longa off
+
+               lda CurrTime+1
+               cmp TimePlayer1+1
+               bcc Win2
+               beq NotSure1
+               bra Win1
+
+NotSure1       lda CurrTime+3
+               cmp TimePlayer1+3
+               bcc Win2
+               beq NotSure2
+               bra Win1
+
+NotSure2       lda CurrTime+4
+               cmp TimePlayer1+4
+               bcc Win2
+               beq NotSure3
+               bra Win1
+
+NotSure3       lda CurrTime+6
+               cmp TimePlayer1+6
+               bcc Win2
+               beq NotSure4
+               bra Win1
+
+NotSure4       lda CurrTime+7
+               cmp TimePlayer1+7
+               bcc Win2
+               beq Tie
+               bra Win1
+
+Win1           lda #$31
+               bra Cont
+Win2           lda #$32
+               bra Cont
+Tie            lda #$33
+
+Cont           sta Text6+22
+
+               rep #$20
+               longa on
+
+               PushLong MDialogPtr
+               PushWord #7
+               PushLong #TextRect6
+               PushWord #StatText+ItemDisable
+               lda Text6+22
+               and #%0000000011111111
+               cmp #$33
+               beq TieBis
+               PushLong #Text6
+               bra Cont2
+TieBis         PushLong #Text6Bis
+Cont2          PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushWord #0              ; result
+               PushLong #0
+               _ModalDialog
+
+               PushLong MDialogPtr
+               _CloseDialog
+
+               pla
+
+               rts
+
+DRect          dc i'40,45,140,275'
+
+TextRect1      dc i'12,70,22,250'
+Text1          str 'The Results !'
+TextRect2      dc i'27,40,37,140'
+Text2          str 'Time Player 1:'
+TextRect3      dc i'27,144,37,280'
+TextRect4      dc i'40,40,50,140'
+Text4          str 'Time Player 2:'
+TextRect5      dc i'40,144,50,280'
+TextRect6      dc i'58,40,68,250'
+Text6          str 'The Winner is Player 1 '
+Text6Bis       str 'Sorry, no winner !'
+
+ButtonRect     dc i'80,125,0,0'
+ButtonText     str 'Continue'
+
+MDialogPtr     ds 4
+
+prepare2       inc Player
+
+               jsl ShowPic
+
+               PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #Player2Strt
+               _AlertWindow
+
+               pla
+
+               ldx #$00
+BcleEvents     phx
+               PushWord #0
+               PushWord #$FFFF
+               PushLong #EventRecord
+               _GetNextEvent
+
+               pla
+
+               plx
+               inx
+               cpx #20
+               bne bcleEvents
+
+               sep #$20
+               longa off
+
+               ldx #$0
+bcleTrans      lda >CurrTime,x
+               sta >TimePlayer1,x
+               inx
+               cpx #8
+               bne bcleTrans
+               lda #$7
+               sta >TimePlayer1
+
+               rep #$20
+               longa on
+
+               jsr RestartEntry2
+
+               lda #$00
+               sta first
+
+               rts
+
+table          dc i2'01,09,17,25,33,41'
+Pos            ds 2
+Pos2           ds 2
+
+Player2Strt    dc c'33/Player 2, it is now your turn. Press button to '
+               dc c'continue./^Ok',i1'0'
+
+               END
+
+MountBootDisk  START SEG2
+
+               _SetPrefix SetPrefixParams
+               _GetPrefix GetPrefixParams
+
+               PushWord #0              ; space for result
+               PushWord #195            ; x pos
+               PushWord #30             ; y pos
+               PushLong #PromptStr      ; prompt string
+               PushLong #VolStr         ; vol string
+               PushLong #OKStr
+               PushLong #CancelStr
+               _TLMountVolume
+
+               pla
+
+               rtl
+
+PromptStr      str 'Please insert the disk'
+
+VolStr         ds 16
+
+OKStr          str 'OK'
+
+CancelStr      str 'Shutdown'
+
+
+GetPrefixParams dc i'7'
+               dc i4'VolStr'
+
+SetPrefixParams dc i'7'
+               dc i4'BootStr'
+
+BootStr        str '*/'
+
+               END
+
+****************************************************************
+*
+* PlayTitleMusic
+*
+****************************************************************
+PlayTitleMusic START
+               Using GlobalData
+               Using BufferMem
+
+               jsr loadInstrums
+               jsr LoadPartoche
+               jsl LoadTitleGraph
+
+               jsr InitSound
+               jsr Play
+
+bcle           PushWord #0
+               PushWord #$FFFF
+               PushLong #EventRecord
+               _GetNextEvent
+
+               pla
+               lda EventWhat
+               cmp #1
+               bne bcle
+
+               rtl
+
+               END
+
+****************************************************************
+*
+* Display Logo
+*
+****************************************************************
+DisplayLogo    START
+               Using GlobalData
+
+               _HideCursor
+
+               ldx #$00
+bcle           lda >$E19E00,x
+               sta bufferpalette,x
+               inx
+               inx
+               cpx #32
+               bcc bcle
+
+               ldx #$00
+bcle2          lda #$00
+               sta >$E19E00,x
+               inx
+               inx
+               cpx #$200
+               bcc bcle2
+
+Read           jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblock'
+               bcc Continue
+               jmp FatalError
+
+Continue       lda parmblock
+               sta parmblock2
+               sta parmblock3
+               sta parmblock4
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblock2'
+               bcc Read1
+               jmp FatalError
+
+Read1          jsl Prodos
+               dc i2'$12'               ; Read
+               dc i4'parmblock3'
+               bcc Close
+               jmp FatalError
+
+Close          jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblock4'
+               bcc fin
+
+FatalError     jmp ProgramDeath
+
+fin            _ShowCursor
+
+               rtl
+
+MyFullPathname str '1/Logo'
+
+parmblock      ds 2                     ; ref_num
+pathname       dc i4'MyFullPathname'    ; pathname
+iobuffer       ds 4                     ; io_buffer
+
+parmblock2     ds 2                     ; ref_num
+position       dc i4'0'                 ; position
+
+parmblock3     ds 2                     ; ref_num
+databuffer     dc i4'$E12000'           ; data_buffer
+RequestCount   dc i4'$8000'             ; request_count
+TransferCount  ds 4                     ; transfer_count
+
+parmblock4     ds 2                     ; ref_num
+
+               END
+
+*******************************************sPP31qqqqq````*``fff```ff f f`pffff`` ff` f ff``"" f*qpffff``qqqqqqqq``"`fff*	ff	fff	f	f```f f f fff`fffffffff`f`ww`H` fff f ff ff"" f"!f`pfff`fff`ff`fff7s3qqqqqqqqq"  $	 ""*""*q7pwwpH "* """""""""""""!pp33?s1qqqqqqq"""*"""DH)		)*			(*JJ**""""""**q77wwwwwsssD$B"*"""*""*"*"*""***"""""""**qqqs?qqq33331qqqqqqqqq""*"""*$				*DB"""*""""""3sswsw3s*$B"*""*""""***"""*""""""""""*/qqq?77331qqqq"*"*""""H	)						DDB**"""**"""q3?73wsszD""*"""""""*"""""""""""""""*/qssqqq3??3qqqqqqqqqq"*"""""""$(		D$"*""*"""*""3377w3?q(DJ""""*"*"""""*""*""""""""*"/qq3?1?3113??3qqqqqq""*"""*""$D			((*HIDDDJ""*"*""""*"q?S3?3?3?7wDB"""""**""*"""""""""""""""*!qqs1?1qqqqq""*"""*"""D	((*D	D*HD"*""""**""*!5S33C3?3?swsr****""""""""""""""""""""""!qqqqqsqqqqqq"********"$H	)((DHDDDDD""""*"*""*"*qqEDC334?s3sq""E*"""**"*""""*"""**"""*!qqqq11qqqqqqqqqqqq"*"""*""**$$		((HHHDDDDDDB"""*"*!qqq35SD4COsC?ssqqqqqA"""""""""*""**"!qqq3qqqqqqqq"""""*""***J**((HD(H$DDDDDDBqqs4UDDTDO4437w33Oqqq*""""""""qq3?38qqqqqq""*"*""""""""$J)***()(DD33s1qqqqq3uOOuETTD4?7ss3q
+*
+****************************************************************
+ProgramDeath   START
+               Using GlobalData
+
+               pha
+               PushLong #ErrorMessage
+               _SysFailMgr
+
+               rts
+
+ErrorMessage   str 'Prodos 16 reported an error:'
+
+MemError       ENTRY
+
+               pla
+               pla
+
+               lda #01
+               sta soundOn
+
+               rtl
+
+               END
+
+****************************************************************
+*
+* LoadHighScores
+*
+****************************************************************
+LoadHighScores START
+               Using GlobalData
+               Using BufferMem
+
+               jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblock'
+               bcc Seek
+               jmp FatalError
+
+Seek           lda parmblock
+               sta parmblock2
+               sta parmblock3
+               sta parmblock4
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblock2'
+               bcc Write
+               jmp FatalError
+
+Write          jsl Prodos
+               dc i2'$12'               ; Read
+               dc i4'parmblock3'
+               bcc Close
+               jmp FatalError
+
+Close          jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblock4'
+               bcc GetPrefix
+               jmp FatalError
+
+GetPrefix      jsl Prodos
+               dc i2'$0A'               ; Get_Prefix
+               dc i4'parmblock5'
+               bcc exit
+
+FatalError     jmp ProgramDeath
+
+exit           rtl
+
+MyFullPathname str '0/Record.file'
+
+parmblock      ds 2                     ; ref_num
+pathname       dc i4'MyFullPathname'    ; pathname
+iobuffer       ds 4                     ; io_buffer
+
+parmblock2     ds 2                     ; ref_num
+position       dc i4'0'                 ; position
+
+parmblock3     ds 2                     ; ref_num
+databuffer     dc i4'High60'            ; data_buffer
+RequestCount   dc i4'2590'              ; request_count
+TransferCount  ds 4                     ; transfer_count
+
+parmblock4     ds 2                     ; ref_num
+
+parmblock5     dc i2'0'
+prefix         dc i4'ProgPathname'
+
+               END
+
+****************************************************************
+*
+* Save, Restore
+*
+****************************************************************
+Save           START
+               Using GlobalData
+               Using BufferMem
+               Using BufferMem2
+
+               lda SoundOn
+               sta Temp
+               lda #1
+               sta SoundOn
+
+               jsl Prodos
+               dc i2'$0A'               ; Get_Prefix
+               dc i4'parmblock0'
+               bcc SetPrefix
+               jmp FatalError
+
+SetPrefix      jsl Prodos
+               dc i2'$09'               ; Set_Prefix
+               dc i4'parmblock'
+               bcc Open
+               jmp FatalError
+
+Open           jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblock1'
+               bcc Seek
+               cmp #$27
+               beq notRecoverable
+
+               lda #0
+               jsr ProdosError
+               bra Open
+
+NotRecoverable jmp FatalError
+
+Seek           lda parmblock1
+               sta parmblock2
+               sta parmblock3
+               sta parmblock4bis
+               sta parmblock4
+               sta parmblock5
+               sta parmblock6
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblock2'
+               bcc Write
+               jmp FatalError
+
+Write          jsl Prodos
+               dc i2'$13'               ; Write
+               dc i4'parmblock3'
+               bcc Write2
+               cmp #$2B
+               bne pasRecuperable
+
+               lda #2
+               jsr ProdosError
+               bcc Write
+               jmp Close
+
+PasRecuperable jmp FatalError
+
+Write2         jsl Prodos
+               dc i2'$13'               ; Write
+               dc i4'parmblock4'
+               bcc Write2bis
+               jmp FatalError
+
+Write2bis      jsl Prodos
+               dc i2'$13'               ; Write
+               dc i4'parmblock4bis'
+               bcc Write3
+               jmp FatalError
+
+Write3         jsl Prodos
+               dc i2'$13'               ; Write
+               dc i4'parmblock5'
+               bcc Close
+               jmp FatalError
+
+Close          jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblock6'
+               bcc SetPrefix2
+               jmp FatalError
+
+SetPrefix2     jsl Prodos
+               dc i2'$09'               ; Set_Prefix
+               dc i4'parmblock0'
+               bcc exit
+
+FatalError     lda #1
+               jsr ProdosError
+
+exit           lda Temp
+               sta SoundOn
+
+               rts
+
+Restore        ENTRY
+
+               lda SoundOn
+               sta Temp
+               lda #1
+               sta SoundOn
+
+               PEA $0007
+               _IntSource
+
+               lda WindowPresent
+               beq Load
+
+               lda Finished
+               bne Load
+
+               PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #okRestoreStr
+               _AlertWindow
+
+               pla
+
+               cmp #1
+               bne Load
+
+               lda Temp
+               sta SoundOn
+
+               jmp donotRestore
+
+Load           jsl Prodos
+               dc i2'$0A'               ; Get_Prefix
+               dc i4'parmblock0'
+               bcc SetPrefix3
+               jmp FatalError
+
+SetPrefix3     jsl Prodos
+               dc i2'$09'               ; Set_Prefix
+               dc i4'parmblock'
+               bcc Open2
+               jmp FatalError
+
+Open2          jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblock1'
+               bcc Seek2
+               cmp #$27
+               beq UnRecoverable
+
+               lda #0
+               jsr ProdosError
+               bra Open2
+
+UnRecoverable  jmp FatalError
+
+Seek2          lda parmblock1
+               sta parmblock2
+               sta parmblock3
+               sta parmblock4
+               sta parmblock4bis
+               sta parmblock5
+               sta parmblock6
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblock2'
+               bcc Read
+               jmp FatalError
+
+Read           jsl Prodos
+               dc i2'$12'               ; Read
+               dc i4'parmblock3'
+               bcc Read2
+               jmp FatalError
+
+Read2          jsl Prodos
+               dc i2'$12'               ; Read
+               dc i4'parmblock4'
+               bcc Read2bis
+               jmp FatalError
+
+Read2bis       jsl Prodos
+               dc i2'$12'               ; Read
+               dc i4'parmblock4bis'
+               bcc Read3
+               jmp FatalError
+
+Read3          jsl Prodos
+               dc i2'$12'               ; Read
+               dc i4'parmblock5'
+               bcc Close2
+               jmp FatalError
+
+Close2         jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblock6'
+               bcc SetPrefix4
+               jmp FatalError
+
+SetPrefix4     jsl Prodos
+               dc i2'$09'               ; Set_Prefix
+               dc i4'parmblock0'
+               bcc exit2
+               jmp FatalError
+
+exit2          lda Temp
+               sta SoundOn
+
+               lda WindowPresent
+               beq next
+
+               PushLong Win1Ptr
+               _CloseWindow
+
+next           jsr SetupWindows
+
+               lda #$01
+               sta WindowPresent
+
+               lda #$00
+               sta Flashing
+               sta finished
+
+               PushWord #259
+               _DisableMItem
+
+               PushWord #260
+               _EnableMItem
+
+               PushWord #279
+               _EnableMItem
+
+               PushWord #261
+               _EnableMItem
+
+               PushWord #270
+               _EnableMItem
+
+               PushWord #271
+               _EnableMItem
+
+               PushWord #272
+               _EnableMItem
+
+               PushWord #274
+               _EnableMItem
+
+               lda FlipMode
+               sta FlipFlag
+               bne NoFlips
+
+               PushWord #$0
+               PushWord #283
+               _CheckMItem
+
+               bra Cont
+
+NoFlips        PushWord #$8000
+               PushWord #283
+               _CheckMItem
+
+Cont           lda TwoPlayFlag
+               beq NotA2PlayGame
+
+               PushWord #$8000
+               PushWord #278
+               _CheckMItem
+
+               bra Cont2
+
+NotA2PlayGame  PushWord #$0
+               PushWord #278
+               _CheckMItem
+
+Cont2          _DrawMenuBar
+
+               PushLong #0
+               _GetPort
+
+               lda GlobalPort+2
+               pha
+               lda GlobalPort
+               pha
+               _SetPort
+
+               PushWord #262
+               PushWord #10
+               _MoveTo
+
+               lda Player
+               cmp #$02
+               beq ShowTime2
+
+               PushLong #CurrTime
+               _DrawString
+
+               bra TimeShowed
+
+ShowTime2      PushLong #CurrTime2
+               _DrawString
+
+TimeShowed     _SetPort
+
+               lda #1
+               sta First
+
+               jsl DrawPuzzle
+
+               lda HardWayFlag
+               beq donotRestore
+
+               PushWord #260
+               _DisableMItem
+
+donotRestore   PEA $0015
+               PushLong #Interrupt
+               _SetVector
+
+               PEA $0006
+               _IntSource
+
+               rts
+
+MyFullPathname str '0/Savedgame.data'
+
+parmblock0     dc i2'0'
+prefix         dc i4'CurrPathname'
+
+parmblock      dc i2'0'
+prefix2        dc i4'ProgPathname'
+
+parmblock1     ds 2                     ; ref_num
+pathname       dc i4'MyFullPathname'    ; pathname
+iobuffer       ds 4                     ; io_buffer
+
+parmblock2     ds 2                     ; ref_num
+position       dc i4'0'                 ; position
+
+parmblock3     ds 2                     ; ref_num
+databuffer     dc i4'Size'              ; data_buffer
+RequestCount   dc i4'68'                ; request_count
+TransferCount  ds 4                     ; transfer_count
+
+parmblock4     ds 2                     ; ref_num
+databuffer2    dc i4'TablePuz0'         ; data_buffer
+RequestCount2  dc i4'800'               ; request_count
+TransferCount2 ds 4                     ; transfer_count
+
+parmblock4bis  ds 2                     ; ref_num
+databuffer3    dc i4'PicBuf'            ; data_buffer
+RequestCount3  dc i4'$7080'             ; request_count
+TransferCount3 ds 4                     ; transfer_count
+
+parmblock5     ds 2                     ; ref_num
+databuffer4    dc i4'$E19D00'           ; data_buffer
+RequestCount4  dc i4'$220'              ; request_count
+TransferCount4 ds 4                     ; transfer_count
+
+parmblock6     ds 2                     ; ref_num
+
+okRestoreStr   dc c'24/Are you sure that you want to restore a saved game ?'
+               dc c'/^Ok/Cancel',i1'0'
+
+               END
+
+****************************************************************
+*
+* ProdosError
+*
+****************************************************************
+ProdosError    START
+               Using GlobalData
+
+               cmp #0
+               beq FileNotFound
+               cmp #1
+               beq IOError
+               cmp #3
+               beq PuzzleNotFnd
+
+WriteProtected PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #WrtPrctStr
+               _AlertWindow
+
+               pla
+               cmp #1
+
+               rts
+
+FileNotFound   PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #FilenotFnd
+               _AlertWindow
+
+               pla
+               clc
+
+               rts
+
+IOError        PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #IOErrStr
+               _AlertWindow
+
+               pla
+               clc
+
+               rts
+
+PuzzleNotFnd   PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #PuzzleStr
+               _AlertWindow
+
+               pla
+               clc
+
+               rts
+
+WrtPrctStr     dc c'25/The disk is write protected/^Try again/Cancel',i1'0'
+FilenotFnd     dc c'26/Please insert program disk/^Ok',i1'0'
+IOErrStr       dc c'25/Input-output error. Check disk/^Ok',i1'0'
+PuzzleStr      dc c'36/Please insert the disk that contains the puzzle you'
+               dc c' want to load./^Ok',i1'0'
+
+               END
+
+****************************************************************
+*
+* Restart
+*
+****************************************************************
+Restart        START
+               using GlobalData
+
+               PEA $0007
+               _IntSource
+
+               lda Finished
+               bne okRestart
+
+               PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #okRestartStr
+               _AlertWindow
+
+               pla
+
+               cmp #1
+               beq donotRestart
+
+okRestart      lda #0
+               sta First
+               lda Size2
+               sta Size
+               jmp RestartEntry
+
+donotRestart   PEA $0015
+               PushLong #Interrupt
+               _SetVector
+
+               PEA $0006
+               _IntSource
+
+               rts
+
+okRestartStr   dc c'24/Are you sure that you want to restart ?/^Ok/Cancel',i1'0'
+
+               END
+
+****************************************************************
+*
+* Flash. Makes a selected square flash.
+*
+****************************************************************
+Flash          START
+               Using GlobalData
+               Using Buffermem
+               Using Buffermem2
+
+               lda Flashing
+               cmp #$01
+               bne restore
+
+Erase          jsr EraseBlock
+
+               inc Flashing
+
+               _InitCursor
+
+               rtl
+
+restore        _HideCursor
+
+               jsr RestoreBlock
+
+               lda #$01
+               sta flashing
+
+               _InitCursor
+
+               rtl
+
+eraseBlock     _HideCursor
+
+               lda width
+               lsr a
+               sta TempWidth
+               lda #0
+               sta Ligne
+               lda squarepos
+               sta piece
+bcle0          cmp horizPieces
+               bcc endbcle0
+               pha
+               lda ligne
+               clc
+               adc heigh
+               sta ligne
+               pla
+               sec
+               sbc horizPieces
+               bra bcle0
+endbcle0       pha
+               lda ligne
+               clc
+               adc heigh
+               sta yend
+               stz Index
+               pla
+bcle1          beq loop
+               pha
+               lda Index
+               clc
+               adc width
+               sta Index
+               pla
+               dec a
+               bra bcle1
+loop           lda ligne
+               asl a
+               tax
+               lda >tablelignes,x
+               clc
+               adc index
+               sta buf1
+               ldx #$00
+loop1          lda #$00
+               phx
+               ldx buf1
+               sta $E12820,x
+               txy
+               plx
+               iny
+               iny
+               sty buf1
+               inx
+               cpx TempWidth
+               bne loop1
+               inc ligne
+               lda ligne
+               cmp yend
+               bne loop
+               rts
+
+restoreBlock   lda width
+               lsr a
+               sta TempWidth
+               lda #0
+               sta Ligne2
+               lda squarepos
+               sta piece
+               asl a
+               tax
+               lda >tablepuz0,x
+               sta piece2
+               lda >TableFlip,x
+               beq NoFlip
+               brl Flip
+NoFlip         lda Piece2
+bcle0tri       cmp horizPieces
+               bcc endbcle0tri
+               pha
+               lda ligne2
+               clc
+               adc heigh
+               sta ligne2
+               pla
+               sec
+               sbc horizPieces
+               bra bcle0tri
+endbcle0tri    pha
+               lda ligne2
+               clc
+               adc heigh
+               sta yend2
+               stz Index2
+               pla
+bcle1tri       beq Next
+               pha
+               lda Index2
+               clc
+               adc width
+               sta Index2
+               pla
+               dec a
+               bra bcle1tri
+Next           lda #0
+               sta Ligne
+               lda piece
+bcle0bis       cmp horizPieces
+               bcc endbcle0bis
+               pha
+               lda ligne
+               clc
+               adc heigh
+               sta ligne
+               pla
+               sec
+               sbc horizPieces
+               bra bcle0bis
+endbcle0bis    pha
+               lda ligne
+               clc
+               adc heigh
+               sta yend
+               stz Index
+               pla
+bcle1bis       beq loop2
+               pha
+               lda Index
+               clc
+               adc width
+               sta Index
+               pla
+               dec a
+               bra bcle1bis
+loop2          lda ligne
+               asl a
+               tax
+               lda >tablelignes,x
+               clc
+               adc index
+               sta buf1
+               lda ligne2
+               asl a
+               tax
+               lda >tablelignes,x
+               clc
+               adc index2
+               sta buf2
+               ldx #$00
+loop3          ldy buf2
+               phx
+               tyx
+               lda >picbuf,x
+   lPathname'    ; pathname
+iobuffer       ds 4                     ; io_buffer
+
+parmblock2     ds 2                     ; ref_num
+position       dc i4'0'                 ; position
+
+parmblock3     ds 2                     ; ref_num
+databuffer     dc i4'$E12000'           ; data_buffer
+RequestCount   dc i4'$8000'             ; request_count
+TransferCount  ds 4                     ; transfer_count
+
+parmblock4     ds 2                     ; ref_num
+
+               END
+
+*******************************************mp horizPieces
+               bcc endbcleLigne
+               pha
+               lda ligne2
+               clc
+               adc heigh
+               sta ligne2
+               pla
+               sec
+               sbc horizPieces
+               bra bcleLigne
+endbcleLigne   pha
+               lda ligne2
+               clc
+               adc heigh
+               sta yend2
+               stz Index2
+               pla
+bcleWidth      beq Next2
+               pha
+               lda Index2
+               clc
+               adc width
+               sta Index2
+               pla
+               dec a
+               bra bcleWidth
+Next2          lda #0
+               sta Ligne
+               lda piece
+bcleLigne2     cmp horizPieces
+               bcc endbcleLigne2
+               pha
+               lda ligne
+               clc
+               adc heigh
+               sta ligne
+               pla
+               sec
+               sbc horizPieces
+               bra bcleLigne2
+endbcleLigne2  pha
+               lda ligne
+               dec a
+               sta yend
+               clc
+               adc heigh
+               sta ligne
+               stz Index
+               pla
+bcleWidth2     beq bcleDraw
+               pha
+               lda Index
+               clc
+               adc width
+               sta Index
+               pla
+               dec a
+               bra bcleWidth2
+bcleDraw       lda ligne
+               asl a
+               tax
+               lda >tablelignes,x
+               clc
+               adc index
+               sta buf1
+               lda ligne2
+               asl a
+               tax
+               lda >tablelignes,x
+               clc
+               adc index2
+               sta buf2
+               ldx #$00
+bcleCentrale   ldy buf2
+               phx
+               tyx
+               lda >picbuf,x
+               plx
+               iny
+               iny
+               sty buf2
+               phx
+               ldx buf1
+               sta $E12820,x
+               txy
+               plx
+               iny
+               iny
+               sty buf1
+               inx
+               cpx TempWidth
+               bne bcleCentrale
+               dec ligne
+               inc ligne2
+               lda ligne2
+               cmp yend2
+               bne BcleDraw
+               rts
+
+               END
+
+****************************************************************
+*
+* Read Wave & instruments
+*
+****************************************************************
+LoadInstrums   START
+               Using GlobalData
+               Using Buffermem
+               Using BufferMem2
+               Using InstDef
+
+Open           jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblock'
+               bcc noOpenError
+
+               jmp FatalError
+
+noOpenError    lda parmblock
+               sta parmblock0
+               sta parmblock1
+               sta parmblock2
+               sta parmblock3
+               sta parmblock4
+
+               jsl Prodos
+               dc i2'$16'               ; Position
+               dc i4'parmblock0'
+
+               jsl Prodos
+               dc i2'$12'               ; Read Wave
+               dc i4'parmblock1'
+
+               PushLong #PicBuf
+               PushWord #$0
+               PushWord #$8000
+               _WriteRamBlock
+               ErrorDeath 'Writing wave '
+
+               jsl Prodos
+               dc i2'$12'               ; Read Wave
+               dc i4'parmblock2'
+
+               PushLong #PicBuf
+               PushWord #$8000
+               PushWord #$8000
+               _WriteRamBlock
+               ErrorDeath 'Writing wave '
+
+               jsl Prodos
+               dc i2'$12'               ; Read Instruments
+               dc i4'parmblock3'
+
+Close          jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblock4'
+               bcc Ok
+
+FatalError     jmp ProgramDeath
+
+Ok             rts
+
+MyFullPathname str '1/Music/SndSmith.DOC'
+
+parmblock      ds 2                     ; ref_num
+pathname       dc i4'MyFullPathname'    ; pathname
+iobuffer       ds 4                     ; io_buffer
+
+parmblock0     ds 2                     ; ref_num
+               dc i4'2'                 ; position
+
+parmblock1     ds 2                     ; ref_num
+               dc i4'PicBuf'            ; data_buf
+               dc i4'$8000'             ; request_count
+               ds 4                     ; transfer_count
+
+parmblock2     ds 2                     ; ref_num
+               dc i4'PicBuf'            ; data_buf
+               dc i4'$8000'             ; request_count
+               ds 4                     ; transfer_count
+
+parmblock3     ds 2                     ; ref_num
+               dc i4'Instrument1'       ; data_buf
+               dc i4'92*8'              ; request_count
+               ds 4                     ; transfer_count
+
+parmblock4     ds 2
+
+               END
+
+****************************************************************
+*
+* Instdef: Instrument definition
+*
+****************************************************************
+instdef        DATA
+
+Instrument1    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+PriorityInc1   dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vibrato
+               dc i1'0'                       ; vibrato speed
+               dc i1'0'                       ; spare
+AWaveCount1    dc i1'0'                       ; number of waveptrs for osc A
+BWaveCount1    dc i1'0'                       ; number of waveptrs for osc B
+WaveLists1     dc i1'0,0,0,0,0,0'             ; topkey,addr,size,ctrl,pitch
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem   this size supports
+               dc i1'0,0,0,0,0,0'             ; idem   up to 5 wave lists
+               dc i1'0,0,0,0,0,0'             ; idem   for each wave.
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+
+Instrument2    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+               dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vibrato
+               dc i1'0'                       ; vibrato speed
+               dc i1'0'                       ; spare
+AWaveCount2    dc i1'0'                       ; number of waveptrs for osc A
+BWaveCount2    dc i1'0'                       ; number of waveptrs for osc B
+WaveLists2     dc i1'0,0,0,0,0,0'             ; topkey,addr,size,ctrl,pitch
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem   this size supports
+               dc i1'0,0,0,0,0,0'             ; idem   up to 5 wave lists
+               dc i1'0,0,0,0,0,0'             ; idem   for each wave.
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+
+Instrument3    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+               dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vibrato
+               dc i1'0'                       ; vibrato speed
+               dc i1'0'                       ; spare
+AWaveCount3    dc i1'0'                       ; number of waveptrs for osc A
+BWaveCount3    dc i1'0'                       ; number of waveptrs for osc B
+WaveLists3     dc i1'0,0,0,0,0,0'             ; topkey,addr,size,ctrl,pitch
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem   this size supports
+               dc i1'0,0,0,0,0,0'             ; idem   up to 5 wave lists
+               dc i1'0,0,0,0,0,0'             ; idem   for each wave.
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+
+Instrument4    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+               dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vibrato
+               dc i1'0'                       ; vibrato speed
+               dc i1'0'                       ; spare
+AWaveCount4    dc i1'0'                       ; number of waveptrs for osc A
+BWaveCount4    dc i1'0'                       ; number of waveptrs for osc B
+WaveLists4     dc i1'0,0,0,0,0,0'             ; topkey,addr,size,ctrl,pitch
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem   this size supports
+               dc i1'0,0,0,0,0,0'             ; idem   up to 5 wave lists
+               dc i1'0,0,0,0,0,0'             ; idem   for each wave.
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+
+Instrument5    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+               dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vibrato
+               dc i1'0'                       ; vibrato speed
+               dc i1'0'                       ; spare
+AWaveCount5    dc i1'0'                       ; number of waveptrs for osc A
+BWaveCount5    dc i1'0'                       ; number of waveptrs for osc B
+WaveLists5     dc i1'0,0,0,0,0,0'             ; topkey,addr,size,ctrl,pitch
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem   this size supports
+               dc i1'0,0,0,0,0,0'             ; idem   up to 5 wave lists
+               dc i1'0,0,0,0,0,0'             ; idem   for each wave.
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+
+Instrument6    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+               dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vibrato
+               dc i1'0'                       ; vibrato speed
+               dc i1'0'                       ; spare
+AWaveCount6    dc i1'0'                       ; number of waveptrs for osc A
+BWaveCount6    dc i1'0'                       ; number of waveptrs for osc B
+WaveLists6     dc i1'0,0,0,0,0,0'             ; topkey,addr,size,ctrl,pitch
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem   this size supports
+               dc i1'0,0,0,0,0,0'             ; idem   up to 5 wave lists
+               dc i1'0,0,0,0,0,0'             ; idem   for each wave.
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+
+Instrument7    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+               dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vi PushLong #0
+               PushLong #PuzzleStr
+               _AlertWindow
+
+               pla
+               clc
+
+               rts
+
+WrtPrctStr     dc c'25/The disk is write protected/^Try again/Cancel',i1'0'
+FilenotFnd     dc c'26/Please insert program disk/^Ok',i1'0'
+IOErrStr       dc c'25/Input-output error. Check disk/^Ok',i1'0'
+PuzzleStr      dc c'36/Please insert the disk that contains the puzzle you'
+               dc c' want to load./^Ok',i1'0'
+
+               END
+
+****************************************************************
+*
+* Restart
+*
+****************************************************************
+Restart        START
+               using GlobalData
+
+               PEA $0007
+               _IntSource
+
+               lda Finished
+               bne okRestart
+
+               PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #okRestartStr
+               _AlertWindow
+
+               pla
+
+               cmp #1
+               beq donotRestart
+
+okRestart      lda #0
+               sta First
+               lda Size2
+               sta Size
+               jmp RestartEntry
+
+donotRestart   PEA $0015
+               PushLong #Interrupt
+               _SetVector
+
+               PEA $0006
+               _IntSource
+
+               rts
+
+okRestartStr   dc c'24/Are you sure that you want to restart ?/^Ok/Cancel',i1'0'
+
+               END
+
+****************************************************************
+*
+* Flash. Makes a selected square flash.
+*
+****************************************************************
+Flash          START
+               Using GlobalData
+               Using Buffermem
+               Using Buffermem2
+
+               lda Flashing
+               cmp #$01
+               bne restore
+
+Erase          jsr EraseBlock
+
+               inc Flashing
+
+               _InitCursor
+
+               rtl
+
+restore        _HideCursor
+
+               jsr RestoreBlock
+
+               lda #$01
+               sta flashing
+
+               _InitCursor
+
+               rtl
+
+erase              dc i1'0,0,0,0,0,0'             ; idem   for each wave.
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+
+InstIndexTable dc i2'0,92,184,276,368,460,552,644,736,828,920,1012,1104,1196,1288,1380'
+
+FreqTable      dc i2'$00,$16,$17,$18,$1A,$1B,$1D,$1E,$20,$22,$24,$26'                   ; Octave 0
+               dc i2'$29,$2B,$2E,$31,$33,$36,$3A,$3D,$41,$45,$49,$4D'                   ; Octave 1
+               dc i2'$52,$56,$5C,$61,$67,$6D,$73,$7A,$81,$89,$91,$9A'                   ; Octave 2
+               dc i2'$0A3,$0AD,$0B7,$0C2,$0CE,$0D9,$0E6,$0F4,$102,$112,$122,$133'       ; Octave 3
+               dc i2'$146,$15A,$16F,$184,$19B,$1B4,$1CE,$1E9,$206,$225,$246,$269'       ; Octave 4
+               dc i2'$28D,$2B4,$2DD,$309,$337,$368,$39C,$3D3,$40D,$44A,$48C,$4D1'       ; Octave 5
+               dc i2'$51A,$568,$5BA,$611,$66E,$6D0,$737,$7A5,$81A,$895,$918,$9A2'       ; Octave 6
+               dc i2'$A35,$AD0,$B75,$C23,$CDC,$D9F,$E6F,$F4B,$1033,$112A,$122F,$1344'   ; Octave 7
+               dc i2'$1469,$15A0,$16E9,$1846,$19B7,$1B3F,$1CDE,$1E95,$2066,$2254,$245E,2688' ; Octave 8
+
+               END
+
+               Copy 'Puzzle4.src'

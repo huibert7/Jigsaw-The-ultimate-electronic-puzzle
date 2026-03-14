@@ -1,0 +1,2230 @@
+****************************************************************
+*
+* Printer. Printer subroutines
+*
+****************************************************************
+Printer        START
+               Using GlobalData
+               Using Buffermem
+               Using BufferMem2
+
+Choose         ENTRY
+
+               PushWord #0
+               _PrChoosePrinter
+
+               pla
+
+               rts
+
+StyleDialog    ENTRY
+
+               PushWord #0
+               lda PrintHandle+2
+               pha
+               lda PrintHandle
+               pha
+               _PrStlDialog
+
+               pla
+
+               rts
+
+Print          ENTRY
+
+               PEA $0007
+               _IntSource
+
+               PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #PrintMsg
+               _AlertWindow
+
+               pla
+               inc a
+               cmp #$01
+               bne notCancel
+
+               lda finished
+               inc a
+               cmp #1
+               beq donothing
+
+               PEA $0015
+               PushLong #Interrupt
+               _SetVector
+
+               PEA $0006
+               _IntSource
+
+donothing      rts
+
+notCancel      cmp #$03
+               bne notColor
+
+               lda #$20
+               sta Color
+               bra Continue
+
+notColor       lda #$00
+               sta Color
+
+Continue       lda ShowingPuzzle
+               beq no
+
+               jsl ShowPic
+               bra Cont
+
+no             jsl DrawPuzzle
+
+Cont           lda PrintHandle
+               ldx PrintHandle+2
+               jsr Deref
+
+               sta 0
+               stx 2
+               ldy #$56
+               lda [0],y
+               and #$FF00
+               sta [0],y
+               ldy #$18
+               lda [0],y
+               ora Color
+               sta [0],y
+
+               PushWord #0
+               lda PrintHandle+2
+               pha
+               lda PrintHandle
+               pha
+               _PrValidate
+
+               pla
+
+               PushLong #0
+               lda PrintHandle+2
+               pha
+               lda PrintHandle
+               pha
+               PushLong #0
+               _PrOpenDoc
+
+               pla
+               sta PortHandle
+               pla
+               sta PortHandle+2
+
+               lda PortHandle+2
+               pha
+               lda PortHandle
+               pha
+               PushLong #0
+               _PrOpenPage
+
+               lda #180
+               sta Rectangle+4
+
+               lda ShowingPuzzle
+               beq ShuffledPic
+
+               PushLong #LocInfo
+               bra Cont2
+
+ShuffledPic    PushLong #LocInfo2
+
+Cont2          PushLong #rectangle
+               PushWord #0
+               PushWord #0
+               PushWord #0
+               _PPToPort
+
+               lda PortHandle+2
+               pha
+               lda PortHandle
+               pha
+               _PrClosePage
+
+               lda PortHandle+2
+               pha
+               lda PortHandle
+               pha
+               _PrCloseDoc
+
+               lda finished
+               cmp #1
+               beq donothing2
+
+               PEA $0015
+               PushLong #Interrupt
+               _SetVector
+
+               PEA $0006
+               _IntSource
+
+donothing2     rts
+
+LocInfo        dc i2'0'
+               dc i4'Picbuf'
+               dc i2'160'
+               dc i2'0,0,200,320'
+
+LocInfo2       dc i2'0'
+               dc i4'PicBuf2'
+               dc i2'160'
+               dc i2'0,0,200,320'
+
+rectangle      dc i2'0,0,180,320'
+PortHandle     ds 4
+Color          ds 2
+
+PrintMsg       dc c'34/Are you using a color ribbon ?'
+               dc c'/^Cancel/Yes/No',i1'0'
+
+Deref          ENTRY
+
+               sta 0
+               stx 2
+               ldy #2
+               lda [0],y
+               tax
+               lda [0]
+               rts
+
+               END
+
+****************************************************************
+*
+* SetUpWindows
+*
+* Opens the window used by the program.
+*
+****************************************************************
+SetupWindows   START
+               using GlobalData
+               using Buffermem
+               using Buffermem2
+               using InstDef
+
+               lda #$00
+               sta first
+
+               PushLong #0              ; space for result
+               PushLong #Win1ParamBlock
+               _NewWindow
+
+               pla
+               sta Win1Ptr
+               pla
+               sta Win1Ptr+2
+
+               rts
+
+Win1ParamBlock anop
+           dc    i'Win1End-Win1ParamBlock'
+           dc    i2'%0000000000100000' Frame stuff bits make dif types
+           dc    i4'WindName'          Ptr to title
+           dc    i4'0'                 RefCon
+           dc    i2'26,0,190,620'      Full Size (0= default)
+           dc    i4'0'                 Color Table Pointer
+           dc    i2'0'                 Vertical origin
+           dc    i2'0'                 Horizontal origin
+           dc    i2'200'               Data ARea Height
+           dc    i2'640'               Data Area Width
+  n
+               dc i4'parmblock0'
+
+               jsl Prodos
+               dc i2'$12'               ; Read Wave
+               dc i4'parmblock1'
+
+               PushLong #PicBuf
+               PushWord #$0
+               PushWord #$8000
+               _WriteRamBlock
+               ErrorDeath 'Writing wave '
+
+               jsl Prodos
+               dc i2'$12'               ; Read Wave
+               dc i4'parmblock2'
+
+               PushLong #PicBuf
+               PushWord #$8000
+               PushWord #$8000
+               _WriteRamBlock
+               ErrorDeath 'Writing wave '
+
+               jsl Prodos
+               dc i2'$12'               ; Read Instruments
+               dc i4'parmblock3'
+
+Close          jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblock4'
+               bcc Ok
+
+FatalError     jmp ProgramDeath
+
+Ok             rts
+
+MyFullPathname str '1/Music/SndSmith.DOC'
+
+parmblock      ds 2                     ; ref_num
+pathname       dc i4'MyFullPathname'    ; pathname
+iobuffer       ds 4                     ; io_buffer
+
+parmblock0     ds 2                     ; ref_num
+               dc i4'2'                 ; position
+
+parmblock1     ds 2                     ; ref_num
+               dc i4'PicBuf'            ; data_buf
+               dc i4'$8000'             ; request_count
+               ds 4                     ; transfer_count
+
+parmblock2     ds 2                     ; ref_num
+               dc i4'PicBuf'            ; data_buf
+               dc i4'$8000' Click
+
+               PEA $0015
+               PushLong #Interrupt
+               _SetVector
+
+               PEA $0006
+               _IntSource
+
+               stz FirstClick
+
+               lda TwoPlayFlag
+               bne NotFirstClick
+
+               lda Size2
+               sta Size
+               jsr RestartEntry
+               stz FirstClick
+               lda #$01
+               sta first
+
+NotFirstClick  stz HowManyCorrect
+               jsr DrawAllSizes
+
+               ldx #$00
+bcle2          lda >picbuf2,x
+               sta $E12820,x
+               inx
+               inx
+               cpx #$7080
+               bcc bcle2
+               bra CalcPercent
+
+CalcPercent    lda HowManyCorrect
+               asl a
+               asl a
+               pha
+               lda Size
+               asl a
+               tax
+               pla
+               clc
+               adc >IndexPercent,x
+               tax
+
+               sep #$20
+               longa off
+
+               ldy #1
+bclePercent    lda >PercentTable60,x
+               sta PercentStr,y
+               inx
+               iny
+               cpy #5
+               bne bclePercent
+
+               rep #$20
+               longa on
+
+               PushLong #0
+               _GetPort
+
+               lda GlobalPort+2
+               pha
+               lda GlobalPort
+               pha
+               _SetPort
+
+               PushWord #222
+               PushWord #10
+               _MoveTo
+
+               PushLong #PercentStr
+               _DrawString
+
+               _SetPort
+
+               lda HowManyCorrect
+               cmp CurrentCorrect
+               bcc noOle
+               beq noOle
+
+               lda BeepOn
+               bne noOle
+
+               jsr Beep
+
+noOle          lda HowManyCorrect
+               sta CurrentCorrect
+
+               lda PercentStr+3
+               xba
+               cmp #'0.'
+               bne pasgagne2
+
+               lda finished
+               beq gagne
+pasgagne2      jmp pasgagne
+
+gagne          _InitCursor
+               _ShowCursor
+
+               PEA $0007
+               _IntSource
+
+               PushLong #0
+               _GetPort
+
+               lda GlobalPort+2
+               pha
+               lda GlobalPort
+               pha
+               _SetPort
+
+               PushWord #262
+               PushWord #10
+               _MoveTo
+
+               lda Player
+               cmp #$02
+               beq ShowTime2
+
+               PushLong #CurrTime
+               _DrawString
+
+               bra TimeShowed
+
+ShowTime2      PushLong #CurrTime2
+               _DrawString
+
+TimeShowed     _SetPort
+
+               lda #$01
+               sta finished
+
+               PushWord #$FF7F
+               PushWord #4
+               _SetMenuFlag
+
+               PushWord #266
+               _EnableMItem
+
+               PushWord #267
+               _EnableMItem
+
+               PushWord #274
+               _DisableMItem
+
+               lda BeepOn
+               beq SayCongratula
+               jmp TaGueule
+
+SayCongratula  sei
+
+               lda #38
+               asl a
+               tax
+               lda >FreqTable,x
+               sta Temp
+
+               sep #$20
+               longa off
+
+bcleWait2      lda >$E1C03C
+               bmi bcleWait2
+               ora #%00100000
+               and #%10111111
+               sta >$E1C03C
+
+               lda #10
+               sta >$E1C03E
+               lda Temp
+               sta >$E1C03D             ; Frequency low 5
+               lda #$20+10
+               sta >$E1C03E
+               lda Temp+1
+               sta >$E1C03D             ; Frequency high 5
+               lda #$40+10
+               sta >$E1C03E
+               lda #170
+               sta >$E1C03D             ; Volume 5
+               lda #$80+10
+               sta >$E1C03E
+               lda #$80
+               sta >$E1C03D             ; Wave Adress 5
+               lda #$C0+10
+               sta >$E1C03E
+               lda #$36
+               sta >$E1C03D             ; Wave Size 5
+               lda #$A0+10
+               sta >$E1C03E
+               lda #$02
+               sta >$E1C03D             ; Control register 5
+
+               rep #$20
+               longa on
+
+               cli
+
+TaGueule       jsr ShowWinDialog
+               jsr TestHighScore
+
+pasgagne       _InitCursor
+               _ShowCursor
+
+fin            rtl
+
+DrawAllSizes   lda #$00
+               sta piece
+               sta ShowingPuzzle
+               sta IndexTemp
+               lda #0
+               sta line
+               lda Line
+               sta Line2
+               lda Width
+               lsr a
+               sta TempWidth
+
+loop           lda #1
+               sta Correct
+               lda #0
+               sta Ligne2
+               lda piece
+               asl a
+               tax
+               lda >tablepuz0,x
+               sta piece2
+               lda >tableflip,x
+               beq NoFlip
+               brl Flip
+NoFlip         lda piece2
+bcle0          cmp horizPieces
+               bcc endbcle0
+               pha
+               lda ligne2
+               clc
+               adc heigh
+               sta ligne2
+               pla
+               sec
+               sbc horizPieces
+               bra bcle0
+endbcle0       pha
+               lda ligne2
+               clc
+               adc heigh
+               sta yend2
+               stz Index2
+               pla
+bcle1          beq endbcle1
+               pha
+               lda Index2
+               clc
+               adc width
+               sta Index2
+               pla
+               dec a
+               bra bcle1
+endbcle1       lda line2
+               sta ligne
+               clc
+               adc heigh
+               sta yend
+               lda IndexTemp
+               sta index
+loop2          lda ligne
+               asl a
+               tax
+               lda >tablelignes,x
+               clc
+               adc index
+               sta buf1
+               lda ligne2
+               asl a
+               tax
+               lda >tablelignes,x
+               clc
+               adc index2
+               sta buf2
+               ldx #$00
+loop3          ldy buf2
+               phx
+               tyx
+               lda >picbuf,x
+               plx
+               iny
+               iny
+               sty buf2
+               ldy buf1
+               phx
+               tyx
+               sta >picbuf2,x
+               cmp >picbuf,x
+               beq Equal60
+               stz Correct
+Equal60        plx
+               iny
+               iny
+               sty buf1
+               inx
+               cpx TempWidth
+               bne loop3
+               inc ligne
+               inc ligne2
+               lda ligne2
+               cmp yend2
+               bne loop2
+               lda HowManyCorrect
+               clc
+               adc Correct
+               sta HowManyCorrect
+               lda Piece
+               asl a
+               tax
+               lda Correct
+               sta >CorrectTable,x
+               inc piece
+               lda IndexTemp
+               clc
+               adc Width
+               sta IndexTemp
+               cmp #160
+               bne NotEnd
+               stz IndexTemp
+               lda line2
+               clc
+               adc heigh
+               sta Line2
+               cmp #180
+               bcs end60
+NotEnd         jmp loop
+
+end60          _HideCursor
+
+               rts
+
+Flip           lda piece2
+bcleLigne      cmp horizPieces
+               bcc endbcleLigne
+               pha
+               lda ligne2
+               clc
+               adc heigh
+               sta ligne2
+            
+               dc i1'0,0,0,0,0,0'             ; idem
+
+Instrument6    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+               dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vibrato
+               dc i1'0'                       ; vibrato speed
+               dc i1'0'                       ; spare
+AWaveCount6    dc i1'0'                       ; number of waveptrs for osc A
+BWaveCount6    dc i1'0'                       ; number of waveptrs for osc B
+WaveLists6     dc i1'0,0,0,0,0,0'             ; topkey,addr,size,ctrl,pitch
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem   this size supports
+               dc i1'0,0,0,0,0,0'             ; idem   up to 5 wave lists
+               dc i1'0,0,0,0,0,0'             ; idem   for each wave.
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+               dc i1'0,0,0,0,0,0'             ; idem
+
+Instrument7    dc i1'0,0,0'                   ; enveloppe
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'
+               dc i1'0,0,0'                   ; fill out 8 stages with 0's
+               dc i1'0'                       ; release segment - 1
+               dc i1'0'                       ; priority inc
+               dc i1'0'                       ; pitch bend range
+               dc i1'0'                       ; slight vi PushLong #0
+               PushLong #PuzzleStr
+               _AlertWindow
+
+               pla
+               clc
+
+               rts
+
+WrtPrctStr     dc c'25/The disk is write protected/^Try again/Cancel',i1'0'
+FilenotFnd     dc c'26/Please insert program disk/^Ok',i1'0'
+IOErrStr       dc c'25/Input-output error. Check disk/^Ok',i1'0'
+PuzzleStr      dc c'36/Please insert the disk that contains the puzzle you'
+               dc c' want to load./^Ok',i1'0'
+
+               END
+
+*******************************PushLong #0              ; output
+               PushLong #DRect
+               PushWord #True           ; visible
+               PushLong #0              ; refcon
+               _NewModalDialog
+
+               pla
+               sta MDialogPtr
+               pla
+               sta MDialogPtr+2
+
+               PushLong MDialogPtr
+               PushWord #1
+               PushLong #ButtonRect
+               PushWord #ButtonItem
+               PushLong #ButtonText
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #2
+               PushLong #TextRect1
+               PushWord #StatText+ItemDisable
+               PushLong #Text1
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #3
+               PushLong #TextRect2
+               PushWord #StatText+ItemDisable
+               PushLong #Text2
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #4
+               PushLong #TextRect3
+               PushWord #StatText+ItemDisable
+               PushLong #Text3
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #5
+               PushLong #TextRect4
+               PushWord #StatText+ItemDisable
+               PushLong #Text4
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #6
+               PushLong #TextRect5
+               PushWord #StatText+ItemDisable
+               PushLong #Text5
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               sep #$30
+
+               LongA Off
+               LongI Off
+
+               lda diffhour
+               and #%00001111
+               clc
+               adc #$30
+               sta Timestr+1
+
+               lda diffmin
+               and #%00001111
+               clc
+               adc #$30
+               sta Timestr+4
+
+               lda diffmin
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta Timestr+3
+
+               lda diffsec
+               and #%00001111
+               clc
+               adc #$30
+               sta Timestr+7
+
+               lda diffsec
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta Timestr+6
+
+               lda penalty
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta Text6+10
+
+               lda penalty
+               and #%00001111
+               clc
+               adc #$30
+               sta text6+11
+
+               rep #$30
+
+               LongA On
+               LongI On
+
+               PushLong MDialogPtr
+               PushWord #7
+               PushLong #TimeRect
+               PushWord #StatText+ItemDisable
+               PushLong #TimeStr
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               ldx penalty
+               lda #$00
+               sta penalsec
+               sta penalmin
+bcleconv       cpx #$00
+               beq exitbcle
+               sed
+               clc
+               lda penalsec
+               adc #$10
+               sta penalsec
+               cmp #$60
+               bne ok
+               lda #$00
+               sta penalsec
+               clc
+               lda penalmin
+               adc #$01
+               sta penalmin
+ok             txa
+               sec
+               sbc #$01
+               tax
+               cld
+               bra bcleconv
+
+exitbcle       sep #$30
+
+               LongA Off
+               LongI Off
+
+               lda penalmin
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta Text6+28
+
+               lda Penalmin
+               and #%00001111
+               clc
+               adc #$30
+               sta Text6+29
+
+               lda penalsec
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta Text6+31
+
+               lda Penalsec
+               and #%00001111
+               clc
+               adc #$30
+               sta Text6+32
+
+               rep #$30
+
+               LongA On
+               LongI On
+
+               PushLong MDialogPtr
+               PushWord #8
+               PushLong #TextRect6
+               PushWord #StatText+ItemDisable
+               PushLong #Text6
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #9
+               PushLong #TextRect7
+               PushWord #StatText+ItemDisable
+               PushLong #Text7
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               sed
+
+               lda diffmin
+               clc
+               adc penalmin
+               sta totalmin
+
+               lda diffsec
+               clc
+               adc penalsec
+               sta totalsec
+               cmp #$60
+               bcc ok2
+
+               sec
+               sbc #$60
+               sta totalsec
+               clc
+               lda totalmin
+               adc #$01
+               sta totalmin
+
+ok2            lda totalmin
+               cmp #$60
+               bcc ok3
+
+               sec
+               sbc #$60
+               sta totalmin
+               inc diffhour
+
+ok3            cld
+
+               sep #$30
+
+               LongA off
+               LongI off
+
+               lda diffhour
+               and #%00001111
+               clc
+               adc #$30
+               sta Text8+1
+
+               lda totalmin
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta Text8+3
+
+               lda totalmin
+               and #%00001111
+               clc
+               adc #$30
+               sta Text8+4
+
+               lda totalsec
+               lsr a
+               lsr a
+               lsr a
+               lsr a
+               clc
+               adc #$30
+               sta Text8+6
+
+               lda totalsec
+               and #%00001111
+               clc
+               adc #$30
+               sta Text8+7
+
+               rep #$30
+
+               LongA on
+tHandle     ds 4
+Color          ds 2
+
+PrintMsg       dc c'34/Are you using a color ribbon ?'
+               dc c'/^Cancel/Yes/No',i1'0'
+
+Deref          ENTRY
+
+               sta 0
+               stx 2
+               ldy #2
+               lda [0],y
+               tax
+               lda [0]
+               rts
+
+               END
+
+****************************************************************
+*
+* SetUpWindows
+*
+* Opens the window used by the program.
+*
+********************************************************          PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushWord #0              ; result
+               PushLong #0
+               _ModalDialog
+
+               pla
+
+               PushLong MDialogPtr
+               _CloseDialog
+
+               ldx #$00
+finalbcle      lda Text8,x
+               sta FinalTime,x
+               inx
+               inx
+               cpx #$08
+               bne finalbcle
+
+noproblem      rts
+
+DRect          dc i'35,30,180,280'
+
+TextRect1      dc i'15,10,27,280'
+Text1          str 'Congratulations, you solved'
+TextRect2      dc i'27,10,39,280'
+Text2          str 'this puzzle but there are many'
+TextRect3      dc i'39,10,51,280'
+Text3          str 'others on this disk. Will you be'
+TextRect4      dc i'51,10,63,280'
+Text4          str 'able to solve them all ?'
+TextRect5      dc i'68,10,80,166'
+Text5          str 'Time to solve puzzle: '
+TimeRect       dc i'68,167,80,280'
+timestr        str '0:00:00'
+TextRect6      dc i'80,10,92,280'
+Text6          str 'Penalty: 00 * 10 sec =     00:00'
+TextRect7      dc i'92,164,100,280'
+Text7          str '------'
+TextRect8      dc i'104,167,116,280'
+Text8          str '0:00:00'
+TextRect9      dc i'104,40,114,160'
+Text9          str 'Final time:'
+
+ButtonRect     dc i'122,147,0,0'
+
+ButtonText     str 'Continue'
+
+MDialogPtr     ds 4
+
+               END
+
+*****************************************************************
+*
+* ShowHighScores2
+*
+*****************************************************************
+ShowHighScores2 START
+               Using GlobalData
+               Using BufferMem
+
+               jsr MoveRecTbl
+
+               lda #$FF
+               sta NoHighScore
+               jsr ShowHighScores
+
+               rts
+
+MoveRecTbl     ENTRY
+
+               lda Size
+               ldx FlipMode
+               beq NotFlipMode
+               clc
+               adc #7
+NotFlipMode    asl a
+               tax
+               lda >HighIndex,x
+               tax
+
+               sep #$20
+
+               longA Off
+
+               ldy #$00
+bclemove       lda >High60,x
+               phx
+               tyx
+               sta >High1,x
+               plx
+               inx
+               iny
+               cpy #145
+               bne bclemove
+
+               rep #$20
+
+               LongA On
+
+               lda Size
+               ldx FlipMode
+               beq NotFlipMode2
+               clc
+               adc #7
+NotFlipMode2   asl a
+               tax
+               lda >TimeIndex,x
+               tax
+
+               sep #$20
+
+               longA Off
+
+               ldy #$00
+bclemove2      lda >Time60,x
+               phx
+               tyx
+               sta >Time1,x
+               plx
+               inx
+               iny
+               cpy #40
+               bne bclemove2
+
+               rep #$20
+
+               LongA On
+
+               rts
+
+MoveRecTblBack ENTRY
+
+               lda Size
+               ldx FlipMode
+               beq NotFlipMode3
+               clc
+               adc #7
+NotFlipMode3   asl a
+               tax
+               lda >HighIndex,x
+               tax
+
+               sep #$20
+
+               longA Off
+
+               ldy #$00
+bclemove3      phx
+               tyx
+               lda >High1,x
+               plx
+               sta >High60,x
+               inx
+               iny
+               cpy #145
+               bne bclemove3
+
+               rep #$20
+
+               LongA On
+
+               lda Size
+               ldx FlipMode
+               beq NotFlipMode4
+               clc
+               adc #7
+NotFlipMode4   asl a
+               tax
+               lda >TimeIndex,x
+               tax
+
+               sep #$20
+
+               longA Off
+
+               ldy #$00
+bclemove4      phx
+               tyx
+               lda >Time1,x
+               plx
+               sta >Time60,x
+               inx
+               iny
+               cpy #40
+               bne bclemove4
+
+               rep #$20
+
+               LongA On
+
+               rts
+
+               END
+
+*****************************************************************
+*
+* ShowHighScores
+*
+* Brings up the High-Score box and waits until button press until
+* it puts it away.
+*
+*****************************************************************
+ShowHighScores START
+               using globalData
+               using BufferMem
+
+               sep #$20
+
+               longA Off
+
+               lda Size
+               tax
+               lda ZeroNumber,x
+               sta >TitleStr+14
+               lda FirstNumber,x
+               sta >TitleStr+15
+               lda SecondNumber,x
+               sta >TitleStr+16
+               lda #24
+               sta >TitleStr
+               lda FlipMode
+               beq ShortMsg
+
+               lda #32
+               sta >TitleStr
+
+ShortMsg       rep #$20
+               LongA On
+
+               PushLong #0              ; output
+               PushLong #HighScoreRect
+               PushWord #True           ; visible
+               PushLong #0              ; refcon
+               _NewModalDialog
+
+               pla
+               sta MDialogPtr
+               pla
+               sta MDialogPtr+2
+
+               lda NoHighScore
+               cmp #$FF
+               bne ShowEditLine
+               brl NoEditLine
+
+ShowEditLine   PushLong MDialogPtr
+               PushWord #13
+               lda NoHighScore
+               asl a
+               asl a
+               tay
+               iny
+               iny
+               lda TableRect,y
+               pha
+               dey
+               dey
+               lda TableRect,y
+               pha
+               PushWord #EditLine+ItemDisable
+               PushLong #0
+               PushWord #25
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+NoEditLine     PushLong MDialogPtr
+               PushWord #1
+               PushLong #ButtonHighRect
+               PushWord #ButtonItem
+               PushLong #ButtonHighStr
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #2
+               PushLong #HighRect1
+               PushWord #StatText+ItemDisable
+               PushLong #High1
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #3
+               PushLong #Time1Rect
+               PushWord #StatText+ItemDisable
+               PushLong #Time1
+3E
+               lda #$02
+               sta >$E1C03D             ; Control register 5
+
+               rep #$20
+               longa on
+
+               cli
+
+TaGueule       jsr ShowWinDialog
+               jsr TestHighScore
+
+pasgagne       _InitCursor
+               _ShowCursor
+
+fin            rtl
+
+DrawAllSizes   lda #$00
+               sta piece
+               sta ShowingPuzzle
+               sta IndexTemp
+               lda #0
+               sta line
+               lda Line
+               sta Line2
+         PushLong #Time2Rect
+               PushWord #StatText+ItemDisable
+               PushLong #Time2
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #6
+               PushLong #HighRect3
+               PushWord #StatText+ItemDisable
+               PushLong #High3
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #7
+               PushLong #Time3Rect
+               PushWord #StatText+ItemDisable
+               PushLong #Time3
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #8
+               PushLong #HighRect4
+               PushWord #StatText+ItemDisable
+               PushLong #High4
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #9
+               PushLong #Time4Rect
+               PushWord #StatText+ItemDisable
+               PushLong #Time4
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #10
+               PushLong #HighRect5
+               PushWord #StatText+ItemDisable
+               PushLong #High5
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #11
+               PushLong #Time5Rect
+               PushWord #StatText+ItemDisable
+               PushLong #Time5
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushLong MDialogPtr
+               PushWord #12
+               PushLong #TitleRect
+               PushWord #StatText+ItemDisable
+               PushLong #TitleStr
+               PushWord #0              ; new field
+               PushWord #0
+               PushLong #0
+               _NewDItem
+
+               PushWord #0              ; result
+               PushLong #0
+               _ModalDialog
+
+               pla
+
+               lda NoHighScore
+               cmp #$FF
+               bne Save
+
+               PushLong MDialogPtr
+               _CloseDialog
+
+               rts
+
+Save           PushLong MDialogPtr
+               PushWord #13
+               PushLong #StupidString
+               _GetIText
+
+               sep #$30
+
+               LongA Off
+               LongI Off
+
+               lda NoHighScore
+               tax
+               lda TableIndex,x
+               tax
+               lda StupidString
+               clc
+               adc #$03
+               sta >High1,x
+               inx
+               inx
+               inx
+               inx
+               ldy #01
+savename       lda StupidString,y
+               sta >High1,x
+               iny
+               inx
+               cpy #26
+               bne savename
+
+fastexit       rep #$30
+
+               LongA On
+               LongI On
+
+               jsr MoveRecTblBack
+
+               lda #$FF
+               sta NoHighScore
+
+               PushLong MDialogPtr
+               _CloseDialog
+
+SaveHighScores lda SoundOn
+               sta Temp
+               lda #1
+               sta SoundOn
+
+               jsl Prodos
+               dc i2'$0A'               ; Get_Prefix
+               dc i4'parmblock0'
+               bcc SetPrefix
+               jmp FatalError
+
+SetPrefix      jsl Prodos
+               dc i2'$09'               ; Set_Prefix
+               dc i4'parmblock'
+               bcc Open
+               jmp FatalError
+
+Open           jsl Prodos
+               dc i2'$10'               ; Open
+               dc i4'parmblock1'
+               bcc Seek
+               cmp #$27
+               beq notRecoverable
+
+               lda #0
+               jsr ProdosError
+               bra Open
+
+NotRecoverable jmp FatalError
+
+Seek           lda parmblock1
+               sta parmblock2
+               sta parmblock3
+               sta parmblock4
+
+               jsl Prodos
+               dc i2'$16'               ; Set_Mark
+               dc i4'parmblock2'
+               bcc Write
+               jmp FatalError
+
+Write          jsl Prodos
+               dc i2'$13'               ; Write
+               dc i4'parmblock3'
+               bcc Close
+               cmp #$2B
+               bne pasRecuperable
+
+               lda #2
+               jsr ProdosError
+               bcc Write
+               jmp Close
+
+PasRecuperable jmp FatalError
+
+Close          jsl Prodos
+               dc i2'$14'               ; Close
+               dc i4'parmblock4'
+               bcc SetPrefix2
+               jmp FatalError
+
+SetPrefix2     jsl Prodos
+               dc i2'$09'               ; Set_Prefix
+               dc i4'parmblock0'
+               bcc exit
+
+FatalError     lda #1
+               jsr ProdosError
+
+exit           lda Temp
+               sta SoundOn
+
+               rts
+
+MyFullPathname str '0/Record.file'
+
+parmblock0     dc i2'0'
+prefix         dc i4'CurrPathname'
+
+parmblock      dc i2'0'
+prefix2        dc i4'ProgPathname'
+
+parmblock1     ds 2                     ; ref_num
+pathname       dc i4'MyFullPathname'    ; pathname
+iobuffer       ds 4                     ; io_buffer
+
+parmblock2     ds 2                     ; ref_num
+position       dc i4'0'                 ; position
+
+parmblock3     ds 2                     ; ref_num
+databuffer     dc i4'High60'            ; data_buffer
+RequestCount   dc i4'2590'              ; request_count
+TransferCount  ds 4                     ; transfer_count
+
+parmblock4     ds 2                     ; ref_num
+
+MDialogPtr     ds 4
+StupidString   ds 26
+
+TableRect      dc i4'Rect1'
+               dc i4'Rect2'
+               dc i4'Rect3'
+               dc i4'Rect4'
+               dc i4'Rect5'
+
+TableIndex     dc i1'0,29,58,87,116'
+
+Rect1          dc i'18,22,31,215'
+Rect2          dc i'30,22,43,215'
+Rect3          dc i'42,22,55,215'
+Rect4          dc i'54,22,67,215'
+Rect5          dc i'66,22,79,215'
+
+ZeroNumber     dc i1'$30,$30,$30,$30,$30,$31,$32'
+FirstNumber    dc i1'$36,$34,$31,$30,$39,$36,$30'
+SecondNumber   dc i1'$30,$30,$35,$38,$30,$30,$30'
+
+HighscoreRect  dc i'45,30,155,295'
+
+TitleRect      dc i'5,27,17,280'
+TitleStr       str 'High-Scores (060 pieces) w/Flips'
+HighRect1      dc i'20,10,32,215'
+Time1Rect      dc i'20,216,32,280'
+HighRect2      dc i'32,10,44,215'
+Time2Rect      dc i'32,216,44,280'
+HighRect3      dc i'44,10,56,215'
+Time3Rect      dc i'44,216,56,280'
+HighRect4      dc i'56,10,68,215'
+Time4Rect      dc i'56,216,68,280'
+HighRect5      dc i'68,10,80,215'
+Time5Rect      dc i'68,216,80,280'
+
+ResetRecords   ENTRY
+
+               PushWord #0
+               PushWord #0
+               PushLong #0
+               PushLong #ConfirmMsg
+               _AlertWindow
+
+               pla
+               cmp #$0
+               bne ok
+
+               rts
+
+ok             sep #$20
+               longa off
+
+               ldx #0
+bcleRestName   lda HighNew,x
+               sta >High60,x
+               sta >High40,x
+               sta >High15,x
+               sta >High8,x
+               sta >High90,x
+               sta >High160,x
+               sta >High200,x
+               sta >High60bis,x
+               sta >High40bis,x
+               sta >High15bis,x
+               sta >High8bis,x
+               sta >High90bis,x
+               sta >High160bis,x
+               sta >High200bis,x
+
+               inx
+               cpx #145
+               bne bcleRestName
+
+               rep #$20
+               longa on
+
+               ldy #$0
+               ldx #6
+bcleRestSec    lda #$3030
+               sta >Time60,x
+               txa
+               clc
+               adc #8
+               tax
+               iny
+               cpy #70
+               bne bcleRestSec
+
+               ldy #$0
+               ldx #1
+bcleRestHour   lda #$3A30
+               sta >Time60,x
+               sta >Time40,x
+               sta >Time15,x
+               sta >Time8,x
+               sta >Time90,x
+               sta >Time60bis,x
+               sta >Time40bis,x
+               sta >Time15bis,x
+               sta >Time8bis,x
+               sta >Time90bis,x
+               lda #$3A31
+               sta >Time160,x
+               sta >Time200,x
+               lda #$3A32
+               sta >Time160bis,x
+               lda #$3A33
+               sta >Time200bis,x
+               txa
+               clc
+               adc #8
+               tax
+               iny
+               cpy #5
+               bne bcleRestHour
+
+               ldy #$0
+               ldx #3
+               lda #$3130
+               sta Time
+bcleRestMin    lda Time
+               sta >Time8,x
+               sta >Time160,x
+               sta >Time8bis,x
+               sta >Time160bis,x
+               clc
+               adc #$400
+               sta >Time15,x
+               clc
+               adc #$1
+               sec
+               sbc #$500
+               sta >Time40,x
+               sta >Time15bis,x
+               clc
+               adc #$500
+               sta >Time60,x
+               sta >Time200,x
+               sta >Time200bis,x
+               clc
+               adc #$1
+               sec
+               sbc #$500
+               sta >Time90,x
+               sta >Time40bis,x
+               clc
+               adc #$1
+               sta >Time60bis,x
+               clc
+               adc #$1
+               sta >Time90bis,x
+               txa
+               clc
+               adc #8
+               tax
+               lda Time
+               clc
+               adc #$100
+               sta Time
+               iny
+               cpy #5
+               bne bcleRestMin
+
+               jmp SaveHighScores
+
+HighNew        str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+Time           ds 2
+
+ConfirmMsg     dc c'34/Are you sure that you want to erase the record table?'
+               dc c'/^Cancel/Ok',i1'0'
+
+               END
+
+BufferMem      DATA Seg2
+
+tablelignes   dc i2'0,160,320,480,640,800,960,1120,1280,1440'
+              dc i2'1600,1760,1920,2080,2240,2400,2560,2720,2880,3040'
+              dc i2'3200,3360,3520,3680,3840,4000,4160,4320,4480,4640'
+              dc i2'4800,4960,5120,5280,5440,5600,5760,5920,6080,6240'
+              dc i2'6400,6560,6720,6880,7040,7200,7360,7520,7680,7840'
+              dc i2'8000,8160,8320,8480,8640,8800,8960,9120,9280,9440'
+              dc i2'9600,9760,9920,10080,10240,10400,10560,10720,10880,11040'
+              dc i2'11200,11360,11520,11680,11840,12000,12160,12320,12480,12640'
+              dc i2'12800,12960,13120,13280,13440,13600,13760,13920,14080,14240'
+              dc i2'14400,14560,14720,14880,15040,15200,15360,15520,15680,15840'
+              dc i2'16000,16160,16320,16480,16640,16800,16960,17120,17280,17440'
+              dc i2'17600,17760,17920,18080,18240,18400,18560,18720,18880,19040'
+              dc i2'19200,19360,19520,19680,19840,20000,20160,20320,20480,20640'
+              dc i2'20800,20960,21120,21280,21440,21600,21760,21920,22080,22240'
+              dc i2'22400,22560,22720,22880,23040,23200,23360,23520,23680,23840'
+              dc i2'24000,24160,24320,24480,24640,24800,24960,25120,25280,25440'
+              dc i2'25600,25760,25920,26080,26240,26400,26560,26720,26880,27040'
+              dc i2'27200,27360,27520,27680,27840,28000,28160,28320,28480,28640'
+
+tablepuz       dc i2'32,59,23,11,30,49,39,07,24,12'
+               dc i2'06,16,19,31,38,48,29,26,44,22'
+               dc i2'15,36,42,02,52,58,50,43,03,37'
+               dc i2'27,41,10,20,57,28,54,40,21,08'
+               dc i2'17,56,01,35,13,53,51,18,55,45'
+               dc i2'33,05,47,00,25,34,46,04,14,09'
+
+               dc i2'22,35,06,29,55,15,41,07,54,26'
+               dc i2'34,23,14,47,30,21,53,13,52,46'
+               dc i2'12,33,00,02,16,40,36,31,08,42'
+               dc i2'44,03,48,50,27,43,56,58,45,28'
+               dc i2'17,24,11,38,57,01,59,37,18,49'
+               dc i2'04,20,05,32,10,51,19,25,39,09'
+
+               dc i2'06,18,33,10,19,50,17,49,54,34'
+               dc i2'28,23,32,39,43,24,38,09,55,13'
+               dc i2'45,26,44,01,57,31,37,02,27,53'
+               dc i2'41,20,47,59,40,56,42,21,03,36'
+               dc i2'46,07,15,30,11,22,48,52,16,12'
+               dc i2'08,29,14,04,00,58,51,25,05,35'
+
+               dc i2'27,08,34,51,21,05,45,14,42,25'
+               dc i2'13,20,40,04,33,30,49,19,03,50'
+               dc i2'58,18,00,11,57,24,35,55,12,37'
+               dc i2'07,47,01,46,17,59,23,44,02,56'
+               dc i2'39,15,54,52,28,32,09,53,43,29'
+               dc i2'31,38,06,26,41,48,16,36,22,10'
+
+               dc i2'14,04,27,00,46,21,11,41,54,36'
+               dc i2'18,38,08,34,51,28,55,17,59,03'
+               dc i2'02,49,24,58,22,10,57,07,12,53'
+               dc i2'25,32,44,56,19,40,01,47,42,31'
+               dc i2'39,15,05,50,13,35,30,52,23,48'
+               dc i2'20,09,29,37,45,33,16,06,43,26'
+
+               dc i2'04,25,48,37,07,47,55,22,29,13'
+               dc i2'43,50,11,28,52,02,34,44,56,38'
+               dc i2'17,33,42,49,21,58,06,15,53,59'
+               dc i2'10,16,51,26,32,18,00,12,08,31'
+               dc i2'23,01,20,39,09,54,45,57,40,27'
+               dc i2'05,36,14,41,46,24,30,35,03,19'
+
+               dc i2'12,36,33,45,55,26,14,05,51,24'
+               dc i2'20,25,08,19,59,11,56,46,39,32'
+               dc i2'29,52,04,31,42,00,53,35,57,44'
+               dc i2'01,21,47,54,58,38,02,30,50,17'
+               dc i2'09,15,37,07,48,22,27,40,43,10'
+               dc i2'49,13,03,18,28,41,34,16,23,06'
+
+               dc i2'17,52,31,04,51,24,29,13,34,48'
+               dc i2'07,55,11,36,49,22,41,53,46,03'
+               dc i2'23,32,02,38,42,47,16,56,25,54'
+               dc i2'43,18,50,26,58,19,06,35,00,08'
+               dc i2'27,37,09,44,14,57,33,20,10,40'
+               dc i2'05,15,21,59,28,12,39,30,45,01'
+
+tablepuz40     dc i2'11,28,08,22,15,35,27,19'
+               dc i2'05,36,18,26,02,34,17,23'
+               dc i2'37,13,29,09,00,38,03,33'
+               dc i2'24,04,31,01,39,32,12,20'
+               dc i2'30,10,14,06,21,16,25,07'
+
+               dc i2'03,13,33,23,34,24,20,14'
+               dc i2'32,22,06,28,35,10,17,25'
+               dc i2'31,04,00,38,15,02,36,05'
+               dc i2'16,11,21,39,19,37,07,26'
+               dc i2'30,08,01,29,12,27,18,09'
+
+               dc i2'06,11,23,28,09,27,17,29'
+               dc i2'05,21,16,26,31,35,22,18'
+               dc i2'38,03,15,32,39,10,04,30'
+               dc i2'20,25,37,08,36,34,13,02'
+               dc i2'07,00,12,01,24,19,33,14'
+
+               dc i2'11,09,27,17,26,35,32,18'
+               dc i2'08,25,02,22,38,34,05,19'
+               dc i2'12,10,31,07,28,00,14,33'
+               dc i2'04,30,37,39,15,01,23,36'
+               dc i2'13,03,21,29,24,16,20,06'
+
+               dc i2'06,24,28,11,32,21,19,05'
+               dc i2'04,15,20,33,00,36,31,16'
+               dc i2'08,13,39,07,37,27,12,03'
+               dc i2'02,35,25,38,30,14,23,09'
+               dc i2'17,29,34,10,26,18,22,01'
+
+               dc i2'17,04,27,37,22,11,31,15'
+               dc i2'03,21,14,30,00,36,26,02'
+               dc i2'09,08,25,16,38,34,29,20'
+               dc i2'10,07,01,32,35,39,24,13'
+               dc i2'12,33,06,28,23,18,05,19'
+
+               dc i2'04,16,14,29,10,34,31,22'
+               dc i2'09,28,08,33,21,36,01,35'
+               dc i2'03,13,26,39,37,30,32,19'
+               dc i2'27,23,00,38,17,11,25,07'
+               dc i2'05,15,02,20,24,06,18,12'
+
+               dc i2'07,14,19,00,09,35,24,16'
+               dc i2'15,26,06,32,39,10,30,25'
+               dc i2'02,13,38,28,18,37,34,01'
+               dc i2'21,08,31,36,04,33,29,23'
+               dc i2'03,12,27,20,22,05,11,17'
+
+tablepuz15     dc i2'04,13,01,10,02'
+               dc i2'12,05,07,11,08'
+               dc i2'06,00,14,03,09'
+
+               dc i2'10,09,05,02,11'
+               dc i2'04,06,08,13,03'
+               dc i2'12,14,01,00,07'
+
+               dc i2'03,09,06,13,12'
+               dc i2'02,08,14,11,01'
+               dc i2'05,07,00,10,04'
+
+               dc i2'04,10,13,08,03'
+               dc i2'09,01,11,02,12'
+               dc i2'05,07,06,14,00'
+
+               dc i2'02,05,09,11,06'
+               dc i2'10,13,00,01,12'
+               dc i2'04,08,14,03,07'
+
+               dc i2'04,09,08,01,10'
+               dc i2'07,03,00,13,06'
+               dc i2'05,14,02,12,11'
+
+               dc i2'03,12,07,10,06'
+               dc i2'02,00,08,13,05'
+               dc i2'01,11,09,14,04'
+
+               dc i2'10,04,12,05,14'
+               dc i2'11,07,00,08,13'
+               dc i2'03,02,09,06,01'
+
+tablepuz8      dc i2'4,2,7,1'
+               dc i2'6,5,3,0'
+
+               dc i2'7,3,0,5'
+               dc i2'2,4,1,6'
+
+               dc i2'4,3,6,7'
+               dc i2'2,1,0,5'
+
+               dc i2'1,0,6,7'
+               dc i2'3,2,5,4'
+
+               dc i2'6,4,7,5'
+               dc i2'0,3,2,1'
+
+               dc i2'7,4,6,2'
+               dc i2'5,1,0,3'
+
+               dc i2'5,3,4,6'
+               dc i2'0,7,1,2'
+
+               dc i2'3,4,0,7'
+               dc i2'2,1,5,6'
+
+IndexPercent   dc i2'0,244,408,472,508,872,1516'
+
+PercentTable60 dc c'00.001.603.305.006.608.310.011.613.315.016.618.3'
+               dc c'20.021.623.325.026.628.330.031.633.335.036.638.3'
+               dc c'40.041.643.345.046.648.350.051.653.355.056.658.3'
+               dc c'60.061.663.365.066.668.370.071.673.375.076.678.3'
+               dc c'80.081.683.385.086.688.390.091.693.395.096.698.3'
+               dc c'100.'
+
+PercentTable40 dc c'00.002.505.007.510.012.515.017.5'
+               dc c'20.022.525.027.530.032.535.037.5'
+               dc c'40.042.545.047.550.052.555.057.5'
+               dc c'60.062.565.067.570.072.575.077.5'
+               dc c'80.082.585.087.590.092.595.097.5'
+               dc c'100.'
+
+PercentTable15 dc c'00.006.613.320.026.633.340.0'
+               dc c'46.653.360.066.673.380.086.6'
+               dc c'93.3100.'
+
+PercentTable8  dc c'00.012.525.037.550.062.575.087.5100.'
+
+PercentTable90 dc c'00.001.102.203.304.405.506.607.708.8'
+               dc c'10.011.112.213.314.415.516.617.718.8'
+               dc c'20.021.122.223.324.425.526.627.728.8'
+               dc c'30.031.132.233.334.435.536.637.738.8'
+               dc c'40.041.142.243.344.445.546.647.748.8'
+               dc c'50.051.152.253.354.455.556.657.758.8'
+               dc c'60.061.162.263.364.465.566.667.768.8'
+               dc c'70.071.172.273.374.475.576.677.778.8'
+               dc c'80.081.182.283.384.485.586.687.788.8'
+               dc c'90.091.192.293.394.495.596.697.798.8'
+               dc c'100.'
+
+PercentTable16 dc c'00.000.601.201.802.503.103.704.305.0'
+               dc c'05.606.206.807.508.108.709.310.0'
+               dc c'10.611.211.812.513.113.714.315.0'
+               dc c'15.616.216.817.518.118.719.320.0'
+               dc c'20.621.221.822.523.123.724.325.0'
+               dc c'25.626.226.827.528.128.729.330.0'
+               dc c'30.631.231.832.533.133.734.335.0'
+               dc c'35.636.236.837.538.138.739.340.0'
+               dc c'40.641.241.842.543.143.744.345.0'
+               dc c'45.646.246.847.548.148.749.350.0'
+               dc c'50.651.251.852.553.153.754.355.0'
+               dc c'55.656.256.857.558.158.759.360.0'
+               dc c'60.661.261.862.563.163.764.365.0'
+               dc c'65.666.266.867.568.168.769.370.0'
+               dc c'70.671.271.872.573.173.774.375.0'
+               dc c'75.676.276.877.578.178.779.380.0'
+               dc c'80.681.281.882.583.183.784.385.0'
+               dc c'85.686.286.887.588.188.789.390.0'
+               dc c'90.691.291.892.593.193.794.395.0'
+               dc c'95.696.296.897.598.198.799.3100.'
+
+TablePercent20 dc c'00.000.501.001.502.002.503.003.504.004.5'
+               dc c'05.005.506.006.507.007.508.008.509.009.5'
+               dc c'10.010.511.011.512.012.513.013.514.014.5'
+               dc c'15.015.516.016.517.017.518.018.519.019.5'
+               dc c'20.020.521.021.522.022.523.023.524.024.5'
+               dc c'25.025.526.026.527.027.528.028.529.029.5'
+               dc c'30.030.531.031.532.032.533.033.534.034.5'
+               dc c'35.035.536.036.537.037.538.038.539.039.5'
+               dc c'40.040.541.041.542.042.543.043.544.044.5'
+               dc c'45.045.546.046.547.047.548.048.549.049.5'
+               dc c'50.050.551.051.552.052.553.053.554.054.5'
+               dc c'55.055.556.056.557.057.558.058.559.059.5'
+               dc c'60.060.561.061.562.062.563.063.564.064.5'
+               dc c'65.065.566.066.567.067.568.068.569.069.5'
+               dc c'70.070.571.071.572.072.573.073.574.074.5'
+               dc c'75.075.576.076.577.077.578.078.579.079.5'
+               dc c'80.080.581.081.582.082.583.083.584.084.5'
+               dc c'85.085.586.086.587.087.588.088.589.089.5'
+               dc c'90.090.591.091.592.092.593.093.594.094.5'
+               dc c'95.095.596.096.597.097.598.098.599.099.5'
+               dc c'100.'
+
+tablepuz0      ds 400
+TablePuz0Back  ds 400
+Tableflip      ds 400
+TableFlipBack  ds 400
+
+picbuf3        ds $7080
+
+CorrectTable   ds 400
+
+High1          str '1. European Software Partner'
+High2          str '2. European Software Partner'
+High3          str '3. European Software Partner'
+High4          str '4. European Software Partner'
+High5          str '5. European Software Partner'
+High6          str '1.                          '
+               str '2.                          '
+               str '3.                          '
+               str '4.                          '
+               str '5.                          '
+Emptystring    str '                            '
+
+Time1          str '0:01:00'
+Time2          str '0:02:00'
+Time3          str '0:03:00'
+Time4          str '0:04:00'
+Time5          str '0:05:00'
+               str '0:00:00'
+               str '0:00:00'
+               str '0:00:00'
+               str '0:00:00'
+               str '0:00:00'
+
+               ds 8
+
+High60         str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High40         str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High15         str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High8          str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High90         str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High160        str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High200        str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High60bis      str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High40bis      str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High15bis      str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High8bis       str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High90bis      str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High160bis     str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+High200bis     str '1. European Software Partner'
+               str '2. European Software Partner'
+               str '3. European Software Partner'
+               str '4. European Software Partner'
+               str '5. European Software Partner'
+
+Time60         str '0:15:00'
+               str '0:16:00'
+               str '0:17:00'
+               str '0:18:00'
+               str '0:19:00'
+
+Time40         str '0:10:00'
+               str '0:11:00'
+               str '0:12:00'
+               str '0:13:00'
+               str '0:14:00'
+
+Time15         str '0:05:00'
+               str '0:06:00'
+               str '0:07:00'
+               str '0:08:00'
+               str '0:09:00'
+
+Time8          str '0:01:00'
+               str '0:02:00'
+               str '0:03:00'
+               str '0:04:00'
+               str '0:05:00'
+
+Time90         str '0:20:00'
+               str '0:21:00'
+               str '0:22:00'
+               str '0:23:00'
+               str '0:24:00'
+
+Time160        str '1:01:00'
+               str '1:02:00'
+               str '1:03:00'
+               str '1:04:00'
+               str '1:05:00'
+
+Time200        str '1:15:00'
+               str '1:16:00'
+               str '1:17:00'
+               str '1:18:00'
+               str '1:19:00'
+
+Time60bis      str '0:30:00'
+               str '0:31:00'
+               str '0:32:00'
+               str '0:33:00'
+               str '0:34:00'
+
+Time40bis      str '0:20:00'
+               str '0:21:00'
+               str '0:22:00'
+               str '0:23:00'
+               str '0:24:00'
+
+Time15bis      str '0:10:00'
+               str '0:11:00'
+               str '0:12:00'
+               str '0:13:00'
+               str '0:14:00'
+
+Time8bis       str '0:01:00'
+               str '0:02:00'
+               str '0:03:00'
+               str '0:04:00'
+               str '0:05:00'
+
+Time90bis      str '0:40:00'
+               str '0:41:00'
+               str '0:42:00'
+               str '0:43:00'
+               str '0:44:00'
+
+Time160bis     str '2:01:00'
+               str '2:02:00'
+               str '2:03:00'
+               str '2:04:00'
+               str '2:05:00'
+
+Time200bis     str '3:15:00'
+               str '3:16:00'
+               str '3:17:00'
+               str '3:18:00'
+               str '3:19:00'
+
+ButtonHighstr  str 'Continue'
+ButtonHighRect dc i'90,140,0,0'
+
+TimeIndex      dc i2'0,40,80,120,160,200,240,280,320,360,400,440,480,520'
+HighIndex      dc i2'0,145,290,435,580,725,870,1015,1160,1305,1450,1595,1740,1885'
+PosIndex       dc i2'0,29,58,87,116,145'
+
+indextbl       dc i2'0,120,240,360,480,600,720,840'
+indextbl40     dc i2'0,80,160,240,320,400,480,560'
+indextbl15     dc i2'0,30,60,90,120,150,180,210'
+indextbl8      dc i2'0,16,32,48,64,80,96,112'
+
+               END
+
+BufferMem2     DATA Seg3
+
+picbuf         ds $7080
+picbuf2        ds $7080
+
+               END
+
+               Copy 'Puzzle3.src'
