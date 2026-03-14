@@ -1,4 +1,4 @@
-![Jigsaw! The ultimate electronic puzzle - screenshot]([https://example.com)](https://github.com/huibert7/Jigsaw-The-ultimate-electronic-puzzle/blob/main/jigsaw.jpg?raw=true)
+![Screenshot](https://github.com/huibert7/Jigsaw-The-ultimate-electronic-puzzle/blob/main/jigsaw.jpg?raw=true)
 
 
 # Jigsaw! The ultimate electronic puzzle
